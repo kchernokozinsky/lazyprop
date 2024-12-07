@@ -1,47 +1,36 @@
-use crate::env::Environment;
+use crate::{config::env::EnvironmentsConfig, env::Environment, error::env::EnvironmentError};
 
 #[derive(Debug)]
-pub struct AppState {
-    pub envs: Vec<Environment>,
+pub struct AppState<'a> {
+    pub envs: &'a mut EnvironmentsConfig,
     pub selected_index: usize,
     pub input_text: String,
     pub output_text: String,
-    pub temp_env: Option<Environment>,
 }
 
-impl AppState {
-    pub fn new() -> Self {
+impl<'a> AppState<'a> {
+    pub fn new(envs: &'a mut EnvironmentsConfig) -> Self {
         Self {
-            envs: vec![],
+            envs,
             selected_index: 0,
             input_text: String::new(),
             output_text: String::new(),
-            temp_env: None,
         }
     }
 
-    pub fn add_env(&mut self, env: Environment) {
-        self.envs.push(env);
-        self.selected_index = self.envs.len().saturating_sub(1);
+    pub fn add_env(&mut self, env: Environment) -> Result<(), EnvironmentError> {
+        self.envs.add(env)
     }
 
-    pub fn remove_env(&mut self) {
-        if self.envs.is_empty() {
-            return;
-        }
-
-        self.envs.remove(self.selected_index);
-
-        if self.selected_index >= self.envs.len() {
-            if !self.envs.is_empty() {
-                self.selected_index = self.envs.len().saturating_sub(1);
-            } else {
-                self.selected_index = 0;
-            }
-        }
+    pub fn remove_env(&mut self) -> Result<(), EnvironmentError> {
+        self.envs.remove(self.selected_index)
     }
 
-    pub fn set_temp_env(&mut self, index: usize) {
-        self.temp_env = self.envs.get(index).cloned();
+    pub fn edit_env(&mut self, env: Environment) -> Result<(), EnvironmentError> {
+        self.envs.edit(self.selected_index, env)
+    }
+
+    pub fn curr_env(&self) -> Result<&Environment, EnvironmentError> {
+        self.envs.get(self.selected_index)
     }
 }

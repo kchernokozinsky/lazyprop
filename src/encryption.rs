@@ -1,7 +1,11 @@
-pub fn encrypt(input: &str, env: &Environment, jar_path: &str) -> Result<String, String> {
+const ENCRYPT_ACTION: &str = "encrypt";
+
+const DECRPYPT_ACTION: &str = "decrypt";
+
+pub fn encrypt(input: &str, env: &Environment, jar_path: PathBuf) -> Result<String, String> {
     invoke_jar(
         jar_path,
-        "encrypt",
+        ENCRYPT_ACTION,
         input,
         &format!("{:?}", env.algorithm),
         &format!("{:?}", env.state),
@@ -10,10 +14,10 @@ pub fn encrypt(input: &str, env: &Environment, jar_path: &str) -> Result<String,
     )
 }
 
-pub fn decrypt(input: &str, env: &Environment, jar_path: &str) -> Result<String, String> {
+pub fn decrypt(input: &str, env: &Environment, jar_path: PathBuf) -> Result<String, String> {
     invoke_jar(
         jar_path,
-        "decrypt",
+        DECRPYPT_ACTION,
         input,
         &format!("{:?}", env.algorithm),
         &format!("{:?}", env.state),
@@ -21,15 +25,17 @@ pub fn decrypt(input: &str, env: &Environment, jar_path: &str) -> Result<String,
         &env.key,
     )
 }
+use std::path::PathBuf;
+
 use crate::env::Environment;
 
 pub fn invoke_jar(
-    jar_path: &str,
-    action: &str, 
+    jar_path: PathBuf,
+    action: &str,
     input: &str,
     algorithm: &str,
     mode: &str,
-    _random_iv: bool, 
+    _random_iv: bool,
     key: &str,
 ) -> Result<String, String> {
     let output = std::process::Command::new("java")

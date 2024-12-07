@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, Copy)]
 pub enum Algorithm {
+    #[default]
     AES,
     Blowfish,
     DES,
@@ -10,8 +11,9 @@ pub enum Algorithm {
     RCA,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, Copy)]
 pub enum State {
+    #[default]
     CBC,
     CFB,
     ECB,
@@ -28,20 +30,16 @@ pub struct Environment {
 }
 
 impl Environment {
-    /// Creates a new `Environment` with the given parameters.
-    pub fn new(
-        name: &str,
-        algorithm: Algorithm,
-        state: State,
-        use_random_ivs: bool,
-        key: &str,
-    ) -> Self {
+    pub fn new<A>(name: A, algorithm: Algorithm, state: State, use_random_ivs: bool, key: A) -> Self
+    where
+        A: Into<String>,
+    {
         Self {
-            name: name.to_string(),
+            name: name.into(),
             algorithm,
             state,
             use_random_ivs,
-            key: key.to_string(),
+            key: key.into(),
         }
     }
 }

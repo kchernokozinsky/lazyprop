@@ -1,25 +1,24 @@
 use lazyprop::{
+    config::{app::AppConfig, env::EnvironmentsConfig},
     encryption::{decrypt, encrypt},
-    env::{Algorithm, Environment, State},
     state::AppState,
 };
 
-fn main() {
-    let jar_path = "res/secure-properties-tool.jar";
+const CONFIG: &str = "conf.yaml";
 
-    let mut state: AppState = AppState::new();
-    let env = Environment::new(
-        "MyEnv",
-        Algorithm::AES,
-        State::CBC,
-        true,
-        "secret1234567890",
-    );
+fn main() -> anyhow::Result<()> {
+    let config = AppConfig::new(CONFIG).unwrap_or_else(|e| {
+        std::process::exit(1);
+    });
 
-    state.add_env(env);
-    state.set_temp_env(0);
+    let mut envs =
+        EnvironmentsConfig::new(config.envs_path.display().to_string()).unwrap_or_else(|e| {
+            std::process::exit(1);
+        });
 
-    match encrypt("sasad", &state.temp_env.clone().unwrap(), jar_path) {
+    let mut state: AppState = AppState::new(&mut envs);
+
+    match encrypt("sasad", state.curr_env()?, config.jar_path.clone()) {
         Ok(e) => {
             println!("encrypt: {}", &e)
         }
@@ -28,12 +27,14 @@ fn main() {
 
     match decrypt(
         "MhKI6FUNIB5KyP9QXN5x2Q==",
-        &state.temp_env.unwrap(),
-        jar_path,
+        state.curr_env()?,
+        config.jar_path.clone(),
     ) {
         Ok(e) => {
             println!("decrypt: {}", &e)
         }
         Err(e) => println!("{}", e),
     }
+
+    Ok(())
 }
