@@ -1,0 +1,13 @@
+[package]
+name = "lazyprop"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tui = "0.19.0"
+crossterm = "0.28.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+aes = "0.8" # Example encryption library
+rand = "0.8" # For random IVs
+base64 = "0.22.1"
