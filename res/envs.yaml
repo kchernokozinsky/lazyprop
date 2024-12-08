@@ -1,11 +1,11 @@
 environments:
-  - name: "DefaultEnv"
-    algorithm: "AES"
-    state: "CBC"
-    use_random_ivs: false
-    key: "secret1234567890"
-  - name: "BlowfishEnv"
-    algorithm: "Blowfish"
-    state: "CFB"
-    use_random_ivs: true
-    key: "secret1234567890"
+- name: DefaultEnv
+  algorithm: AES
+  state: CBC
+  use_random_ivs: false
+  key: secret1234567890
+- name: BlowfishEnv
+  algorithm: Blowfish
+  state: ECB
+  use_random_ivs: true
+  key: secret1234567890

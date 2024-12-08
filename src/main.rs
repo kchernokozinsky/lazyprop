@@ -1,39 +1,48 @@
+use crossterm::{
+    execute,
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+};
 use lazyprop::{
     config::{app::AppConfig, env::EnvironmentsConfig},
-    encryption::{decrypt, encrypt},
-    state::AppState,
+    tui::{app_state::AppState, popup::PopupState, run_app},
 };
+
+use std::io;
+use tui::backend::CrosstermBackend;
+use tui::Terminal;
 
 const CONFIG: &str = "conf.yaml";
 
 fn main() -> anyhow::Result<()> {
     let config = AppConfig::new(CONFIG).unwrap_or_else(|e| {
+        eprintln!("Error: {}", e);
         std::process::exit(1);
     });
 
     let mut envs =
         EnvironmentsConfig::new(config.envs_path.display().to_string()).unwrap_or_else(|e| {
+            eprintln!("Error: {}", e);
             std::process::exit(1);
         });
 
-    let mut state: AppState = AppState::new(&mut envs);
+    let popup: PopupState = PopupState::new();
 
-    match encrypt("sasad", state.curr_env()?, config.jar_path.clone()) {
-        Ok(e) => {
-            println!("encrypt: {}", &e)
-        }
-        Err(e) => println!("{}", e),
-    }
+    let mut state: AppState = AppState::new(&mut envs, popup);
 
-    match decrypt(
-        "MhKI6FUNIB5KyP9QXN5x2Q==",
-        state.curr_env()?,
-        config.jar_path.clone(),
-    ) {
-        Ok(e) => {
-            println!("decrypt: {}", &e)
-        }
-        Err(e) => println!("{}", e),
+    enable_raw_mode()?;
+    let mut stdout = io::stdout();
+    execute!(stdout, EnterAlternateScreen)?;
+    let backend = CrosstermBackend::new(stdout);
+    let mut terminal = Terminal::new(backend)?;
+
+    let res = run_app(&mut terminal, &mut state, &config);
+
+    disable_raw_mode()?;
+    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+    terminal.show_cursor()?;
+
+    if let Err(err) = res {
+        state.status_message = format!("Error: {:?}", err);
     }
 
     Ok(())

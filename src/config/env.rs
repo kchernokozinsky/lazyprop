@@ -1,12 +1,14 @@
-use std::fs;
+use std::{default, fs};
 
 use config::{ConfigError, File};
 use serde::{Deserialize, Serialize};
+use smart_default::SmartDefault;
 
 use crate::{env::Environment, error::env::EnvironmentError};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, SmartDefault)]
 pub struct EnvironmentsConfig {
+    #[default(vec![])]
     pub environments: Vec<Environment>,
 }
 
@@ -61,6 +63,14 @@ impl EnvironmentsConfig {
         self.environments
             .get(index)
             .ok_or(EnvironmentError::InvalidIndex(index))
+    }
+
+    pub fn len(&self) -> usize {
+        self.environments.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.environments.is_empty()
     }
 
     /// Save the current configuration to a YAML file.

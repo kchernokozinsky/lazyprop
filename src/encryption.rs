@@ -46,8 +46,8 @@ pub fn invoke_jar(
         .arg(action)
         .arg(algorithm)
         .arg(mode)
-        .arg(key)
-        .arg(input)
+        .arg(key.trim())
+        .arg(input.trim())
         .output()
         .map_err(|e| format!("Failed to invoke JAR file: {}", e))?;
 

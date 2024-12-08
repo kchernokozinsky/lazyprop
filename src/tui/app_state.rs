@@ -1,20 +1,30 @@
-use crate::{config::env::EnvironmentsConfig, env::Environment, error::env::EnvironmentError};
+use crate::{
+    config::env::EnvironmentsConfig, env::Environment, error::env::EnvironmentError,
+    tui::popup::PopupState,
+};
+
+#[derive(Debug)]
+pub enum InputMode {
+    Normal,
+    Adding,
+    Editing,
+}
 
 #[derive(Debug)]
 pub struct AppState<'a> {
     pub envs: &'a mut EnvironmentsConfig,
     pub selected_index: usize,
-    pub input_text: String,
-    pub output_text: String,
+    pub status_message: String,
+    pub popup: PopupState,
 }
 
 impl<'a> AppState<'a> {
-    pub fn new(envs: &'a mut EnvironmentsConfig) -> Self {
+    pub fn new(envs: &'a mut EnvironmentsConfig, popup: PopupState) -> Self {
         Self {
             envs,
             selected_index: 0,
-            input_text: String::new(),
-            output_text: String::new(),
+            status_message: "".into(),
+            popup,
         }
     }
 
@@ -32,5 +42,13 @@ impl<'a> AppState<'a> {
 
     pub fn curr_env(&self) -> Result<&Environment, EnvironmentError> {
         self.envs.get(self.selected_index)
+    }
+
+    pub fn len_env(&self) -> usize {
+        self.envs.len()
+    }
+
+    pub fn is_empty_env(&self) -> bool {
+        self.envs.is_empty()
     }
 }

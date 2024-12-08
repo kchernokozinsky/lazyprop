@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default, Copy)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, Copy, PartialEq, Eq)]
 pub enum Algorithm {
     #[default]
     AES,
@@ -11,7 +11,7 @@ pub enum Algorithm {
     RCA,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default, Copy)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, Copy, PartialEq, Eq)]
 pub enum State {
     #[default]
     CBC,
