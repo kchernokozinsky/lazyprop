@@ -1,0 +1,15 @@
+{
+  "jar_path": "secure-properties-tool.jar",
+  "envs_path": "envs.yaml",
+  "keybindings": {
+    "Home": {
+      "<q>": "Quit", 
+      "<Ctrl-d>": "Quit", 
+      "<Ctrl-c>": "Quit", 
+      "<Ctrl-z>": "Suspend",
+      "<Down>": "Down",
+      "<Up>": "Up",
+      "<Tab>": "Tab"
+    }
+  }
+}

@@ -1,5 +1,12 @@
+pub mod action;
+pub mod app;
+pub mod cli;
+pub mod components;
 pub mod config;
-pub mod encryption;
-pub mod env;
-pub mod error;
+pub mod dencrypt;
+pub mod environment;
+pub mod errors;
+pub mod logging;
+pub mod panes;
+pub mod state;
 pub mod tui;

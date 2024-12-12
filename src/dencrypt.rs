@@ -27,8 +27,7 @@ pub fn decrypt(input: &str, env: &Environment, jar_path: PathBuf) -> Result<Stri
 }
 use std::path::PathBuf;
 
-use crate::env::Environment;
-
+use crate::environment::Environment;
 pub fn invoke_jar(
     jar_path: PathBuf,
     action: &str,
