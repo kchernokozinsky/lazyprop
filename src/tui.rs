@@ -1,368 +1,235 @@
-pub mod app_state;
-pub mod popup;
+#![allow(dead_code)] // Remove this once you start using the code
 
-use std::time::Duration;
-
-use anyhow::Result;
-use app_state::AppState;
-use crossterm::event::{self, Event, KeyCode};
-use popup::draw_popup;
-use tui::{
-    backend::Backend,
-    layout::{Constraint, Direction, Layout},
-    style::{Color, Style},
-    widgets::{Block, Borders, Clear, Paragraph},
-    Frame, Terminal,
+use std::{
+    io::{stdout, Stdout},
+    ops::{Deref, DerefMut},
+    time::Duration,
 };
 
-use crate::{config::app::AppConfig, env::Environment};
-use crate::{
-    encryption::{decrypt, encrypt},
-    tui::popup::{PopupField, PopupMode, ALGORITHMS, STATES},
+use color_eyre::Result;
+use crossterm::{
+    cursor,
+    event::{
+        DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture,
+        Event as CrosstermEvent, EventStream, KeyEvent, KeyEventKind, MouseEvent,
+    },
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen},
 };
+use futures::{FutureExt, StreamExt};
+use ratatui::backend::CrosstermBackend as Backend;
+use serde::{Deserialize, Serialize};
+use tokio::{
+    sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
+    task::JoinHandle,
+    time::interval,
+};
+use tokio_util::sync::CancellationToken;
+use tracing::error;
 
-pub fn run_app<B: Backend>(
-    terminal: &mut Terminal<B>,
-    state: &mut AppState,
-    config: &AppConfig,
-) -> Result<()> {
-    loop {
-        terminal.draw(|f| draw_ui(f, state))?;
-
-        if crossterm::event::poll(Duration::from_millis(200))? {
-            if let Event::Key(key) = event::read()? {
-                if state.popup.mode != PopupMode::None {
-                    handle_popup_input(state, key.code, config)?;
-                } else {
-                    handle_normal_input(state, key.code, config)?
-                }
-            }
-        }
-    }
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum Event {
+    Init,
+    Quit,
+    Error,
+    Closed,
+    Tick,
+    Render,
+    FocusGained,
+    FocusLost,
+    Paste(String),
+    Key(KeyEvent),
+    Mouse(MouseEvent),
+    Resize(u16, u16),
 }
 
-pub fn draw_ui<B: Backend>(f: &mut Frame<B>, state: &AppState) {
-    let size = f.size();
+pub struct Tui {
+    pub terminal: ratatui::Terminal<Backend<Stdout>>,
+    pub task: JoinHandle<()>,
+    pub cancellation_token: CancellationToken,
+    pub event_rx: UnboundedReceiver<Event>,
+    pub event_tx: UnboundedSender<Event>,
+    pub frame_rate: f64,
+    pub tick_rate: f64,
+    pub mouse: bool,
+    pub paste: bool,
+}
 
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .margin(1)
-        .constraints([
-            Constraint::Percentage(70),
-            Constraint::Percentage(29),
-            Constraint::Percentage(1),
-        ])
-        .split(size);
-
-    let top_area = chunks[0];
-    let middle_area = chunks[1];
-    let hints_area = chunks[2];
-
-    let top_chunks = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
-        .split(top_area);
-
-    let items: Vec<tui::widgets::ListItem> = state
-        .envs
-        .environments
-        .iter()
-        .enumerate()
-        .map(|(i, env)| {
-            let prefix = if i == state.selected_index {
-                "> "
-            } else {
-                "  "
-            };
-            tui::widgets::ListItem::new(format!("{}{}", prefix, env.name))
+impl Tui {
+    pub fn new() -> Result<Self> {
+        let (event_tx, event_rx) = mpsc::unbounded_channel();
+        Ok(Self {
+            terminal: ratatui::Terminal::new(Backend::new(stdout()))?,
+            task: tokio::spawn(async {}),
+            cancellation_token: CancellationToken::new(),
+            event_rx,
+            event_tx,
+            frame_rate: 60.0,
+            tick_rate: 4.0,
+            mouse: false,
+            paste: false,
         })
-        .collect();
-
-    let list = tui::widgets::List::new(items)
-        .block(Block::default().title("Environments").borders(Borders::ALL));
-    f.render_widget(list, top_chunks[0]);
-
-    let details = if let Some(env) = state.envs.environments.get(state.selected_index) {
-        format!(
-            "Algorithm: {:?}\nState: {:?}\nUse Random IVs: {}\nKey: {}",
-            env.algorithm, env.state, env.use_random_ivs, env.key
-        )
-    } else {
-        "No environment selected".to_string()
-    };
-
-    let details_paragraph =
-        Paragraph::new(details).block(Block::default().title("Details").borders(Borders::ALL));
-    f.render_widget(details_paragraph, top_chunks[1]);
-
-    let (title, content) = ("Status", &state.status_message);
-    let paragraph =
-        Paragraph::new(content.clone()).block(Block::default().title(title).borders(Borders::ALL));
-    f.render_widget(paragraph, middle_area);
-
-    if state.popup.mode != PopupMode::None {
-        draw_popup(f, state);
     }
 
-    let hints = "Hints: [a] Add Env | [e] Edit Env | [r] Remove Env | [Up/Down] Cycle Env | [s] Save | [q] Quit";
-    f.render_widget(Clear, hints_area);
-    let hints_par = Paragraph::new(hints).style(Style::default().fg(Color::Yellow));
-    f.render_widget(hints_par, hints_area);
-}
+    pub fn tick_rate(mut self, tick_rate: f64) -> Self {
+        self.tick_rate = tick_rate;
+        self
+    }
 
-fn handle_normal_input(state: &mut AppState, code: KeyCode, config: &AppConfig) -> Result<()> {
-    match code {
-        KeyCode::Char('s') => {
-            state.envs.save(&config.envs_path.display().to_string())?;
-            state.status_message = "Environments are saved".to_string();
-        }
-        KeyCode::Char('q') => {
-            std::process::exit(0);
-        }
-        KeyCode::Char('a') => {
-            state.popup.mode = PopupMode::Add;
-            state.popup.focus = PopupField::Name;
-            state.popup.name.clear();
-            state.popup.key.clear();
-            state.popup.selected_algorithm = 0;
-            state.popup.selected_state = 0;
-            state.popup.use_random_ivs = true;
-        }
-        KeyCode::Char('e') => {
-            if state.selected_index < state.len_env() {
-                let curr = state.curr_env()?.clone();
-                state.popup.mode = PopupMode::Edit;
-                state.popup.focus = PopupField::Name;
-                state.popup.name = curr.name.clone();
-                state.popup.selected_algorithm = ALGORITHMS
-                    .iter()
-                    .position(|&a| a == curr.algorithm)
-                    .unwrap_or(0);
-                state.popup.selected_state =
-                    STATES.iter().position(|&s| s == curr.state).unwrap_or(0);
-                state.popup.use_random_ivs = curr.use_random_ivs;
-                state.popup.key = curr.key.clone();
-            }
-        }
-        KeyCode::Char('r') => {
-            if let Err(err) = state.remove_env() {
-                state.status_message = format!("Error removing env: {}", err);
-            } else {
-                if state.selected_index >= state.len_env() && !state.is_empty_env() {
-                    state.selected_index = state.len_env() - 1;
+    pub fn frame_rate(mut self, frame_rate: f64) -> Self {
+        self.frame_rate = frame_rate;
+        self
+    }
+
+    pub fn mouse(mut self, mouse: bool) -> Self {
+        self.mouse = mouse;
+        self
+    }
+
+    pub fn paste(mut self, paste: bool) -> Self {
+        self.paste = paste;
+        self
+    }
+
+    pub fn start(&mut self) {
+        self.cancel(); // Cancel any existing task
+        self.cancellation_token = CancellationToken::new();
+        let event_loop = Self::event_loop(
+            self.event_tx.clone(),
+            self.cancellation_token.clone(),
+            self.tick_rate,
+            self.frame_rate,
+        );
+        self.task = tokio::spawn(async {
+            event_loop.await;
+        });
+    }
+
+    async fn event_loop(
+        event_tx: UnboundedSender<Event>,
+        cancellation_token: CancellationToken,
+        tick_rate: f64,
+        frame_rate: f64,
+    ) {
+        let mut event_stream = EventStream::new();
+        let mut tick_interval = interval(Duration::from_secs_f64(1.0 / tick_rate));
+        let mut render_interval = interval(Duration::from_secs_f64(1.0 / frame_rate));
+
+        // if this fails, then it's likely a bug in the calling code
+        event_tx
+            .send(Event::Init)
+            .expect("failed to send init event");
+        loop {
+            let event = tokio::select! {
+                _ = cancellation_token.cancelled() => {
+                    break;
                 }
-                state.status_message = "Environment removed".to_string();
-            }
-        }
-        KeyCode::Down => {
-            if state.selected_index + 1 < state.len_env() {
-                state.selected_index += 1;
-            } else {
-                state.selected_index = 0;
-            }
-        }
-        KeyCode::Up => {
-            if state.selected_index > 0 {
-                state.selected_index -= 1;
-            } else {
-                state.selected_index = state.len_env() - 1;
-            }
-        }
-        KeyCode::Enter => {
-            if state.selected_index < state.len_env() {
-                state.popup.mode = PopupMode::EncryptDecrypt;
-                state.popup.focus = PopupField::TextInput;
-                state.popup.text_input.clear();
-            }
-        }
-        _ => {}
-    }
-    Ok(())
-}
-
-fn handle_popup_input(state: &mut AppState, code: KeyCode, config: &AppConfig) -> Result<()> {
-    match state.popup.mode {
-        PopupMode::Add | PopupMode::Edit => handle_add_edit_popup_input(state, code),
-        PopupMode::EncryptDecrypt => handle_encrypt_decrypt_popup_input(state, code, config),
-        PopupMode::None => Ok(()),
-    }
-}
-
-fn handle_add_edit_popup_input(state: &mut AppState, code: KeyCode) -> Result<()> {
-    match code {
-        KeyCode::Tab => {
-            state.popup.focus = next_focus(state.popup.focus);
-        }
-        KeyCode::BackTab => {
-            state.popup.focus = prev_focus(state.popup.focus);
-        }
-        KeyCode::Up => {
-            if state.popup.focus == PopupField::Algorithm && state.popup.selected_algorithm > 0 {
-                state.popup.selected_algorithm -= 1;
-            } else if state.popup.focus == PopupField::State && state.popup.selected_state > 0 {
-                state.popup.selected_state -= 1;
-            }
-        }
-        KeyCode::Down => {
-            if state.popup.focus == PopupField::Algorithm
-                && state.popup.selected_algorithm + 1 < ALGORITHMS.len()
-            {
-                state.popup.selected_algorithm += 1;
-            } else if state.popup.focus == PopupField::State
-                && state.popup.selected_state + 1 < STATES.len()
-            {
-                state.popup.selected_state += 1;
-            }
-        }
-        KeyCode::Char(' ') => {
-            if state.popup.focus == PopupField::IV {
-                state.popup.use_random_ivs = !state.popup.use_random_ivs;
-            } else if state.popup.focus == PopupField::Name {
-                state.popup.name.push(' ');
-            } else if state.popup.focus == PopupField::Key {
-                state.popup.key.push(' ');
-            }
-        }
-        KeyCode::Char(c) => {
-            if state.popup.focus == PopupField::Name {
-                state.popup.name.push(c);
-            } else if state.popup.focus == PopupField::Key {
-                state.popup.key.push(c);
-            }
-        }
-        KeyCode::Backspace => {
-            if state.popup.focus == PopupField::Name {
-                state.popup.name.pop();
-            } else if state.popup.focus == PopupField::Key {
-                state.popup.key.pop();
-            }
-        }
-        KeyCode::Enter => {
-            let new_env = Environment {
-                name: state.popup.name.clone(),
-                algorithm: ALGORITHMS[state.popup.selected_algorithm],
-                state: STATES[state.popup.selected_state],
-                use_random_ivs: state.popup.use_random_ivs,
-                key: state.popup.key.clone(),
+                _ = tick_interval.tick() => Event::Tick,
+                _ = render_interval.tick() => Event::Render,
+                crossterm_event = event_stream.next().fuse() => match crossterm_event {
+                    Some(Ok(event)) => match event {
+                        CrosstermEvent::Key(key) if key.kind == KeyEventKind::Press => Event::Key(key),
+                        CrosstermEvent::Mouse(mouse) => Event::Mouse(mouse),
+                        CrosstermEvent::Resize(x, y) => Event::Resize(x, y),
+                        CrosstermEvent::FocusLost => Event::FocusLost,
+                        CrosstermEvent::FocusGained => Event::FocusGained,
+                        CrosstermEvent::Paste(s) => Event::Paste(s),
+                        _ => continue, // ignore other events
+                    }
+                    Some(Err(_)) => Event::Error,
+                    None => break, // the event stream has stopped and will not produce any more events
+                },
             };
-            let res = match state.popup.mode {
-                PopupMode::Add => state.add_env(new_env),
-                PopupMode::Edit => state.edit_env(new_env),
-                PopupMode::None | PopupMode::EncryptDecrypt => Ok(()),
-            };
-            match res {
-                Ok(_) => state.status_message = "Environment edited".to_string(),
-                Err(e) => state.status_message = format!("Error: {}", e),
-            }
-            state.popup.mode = PopupMode::None;
-        }
-        KeyCode::Esc => {
-            state.popup.mode = PopupMode::None;
-        }
-        _ => {}
-    }
-    Ok(())
-}
-
-fn handle_encrypt_decrypt_popup_input(
-    state: &mut AppState,
-    code: KeyCode,
-    config: &AppConfig,
-) -> Result<()> {
-    match code {
-        KeyCode::Tab => {
-            state.popup.focus = next_focus_encrypt_decrypt(state.popup.focus);
-        }
-        KeyCode::BackTab => {
-            state.popup.focus = prev_focus_encrypt_decrypt(state.popup.focus);
-        }
-        KeyCode::Char(c) => {
-            if state.popup.focus == PopupField::TextInput {
-                state.popup.text_input.push(c);
+            if event_tx.send(event).is_err() {
+                // the receiver has been dropped, so there's no point in continuing the loop
+                break;
             }
         }
-        KeyCode::Backspace => {
-            if state.popup.focus == PopupField::TextInput {
-                state.popup.text_input.pop();
+        cancellation_token.cancel();
+    }
+
+    pub fn stop(&self) -> Result<()> {
+        self.cancel();
+        let mut counter = 0;
+        while !self.task.is_finished() {
+            std::thread::sleep(Duration::from_millis(1));
+            counter += 1;
+            if counter > 50 {
+                self.task.abort();
+            }
+            if counter > 100 {
+                error!("Failed to abort task in 100 milliseconds for unknown reason");
+                break;
             }
         }
-        KeyCode::Enter => {
-            if state.popup.focus == PopupField::EncryptButton {
-                let encrypted = encrypt(
-                    &state.popup.text_input,
-                    state.curr_env()?,
-                    config.jar_path.clone(),
-                );
-                match encrypted {
-                    Ok(encr) => {
-                        state.status_message = format!("Encrypted: {}", encr);
-                    }
-                    Err(e) => {
-                        state.status_message = format!("Error: {}", e);
-                    }
-                }
-                state.popup.mode = PopupMode::None;
-            } else if state.popup.focus == PopupField::DecryptButton {
-                let decrypted = decrypt(
-                    &state.popup.text_input,
-                    state.curr_env()?,
-                    config.jar_path.clone(),
-                );
-                match decrypted {
-                    Ok(decr) => {
-                        state.status_message = format!("Decrypted: {}", decr);
-                    }
-                    Err(e) => {
-                        state.status_message = format!("Error: {}", e);
-                    }
-                }
-                state.popup.mode = PopupMode::None;
+        Ok(())
+    }
+
+    pub fn enter(&mut self) -> Result<()> {
+        crossterm::terminal::enable_raw_mode()?;
+        crossterm::execute!(stdout(), EnterAlternateScreen, cursor::Hide)?;
+        if self.mouse {
+            crossterm::execute!(stdout(), EnableMouseCapture)?;
+        }
+        if self.paste {
+            crossterm::execute!(stdout(), EnableBracketedPaste)?;
+        }
+        self.start();
+        Ok(())
+    }
+
+    pub fn exit(&mut self) -> Result<()> {
+        self.stop()?;
+        if crossterm::terminal::is_raw_mode_enabled()? {
+            self.flush()?;
+            if self.paste {
+                crossterm::execute!(stdout(), DisableBracketedPaste)?;
             }
+            if self.mouse {
+                crossterm::execute!(stdout(), DisableMouseCapture)?;
+            }
+            crossterm::execute!(stdout(), LeaveAlternateScreen, cursor::Show)?;
+            crossterm::terminal::disable_raw_mode()?;
         }
-        KeyCode::Esc => {
-            state.popup.mode = PopupMode::None;
-        }
-        _ => {}
+        Ok(())
     }
-    Ok(())
-}
 
-fn next_focus(current: PopupField) -> PopupField {
-    match current {
-        PopupField::Name => PopupField::Algorithm,
-        PopupField::Algorithm => PopupField::State,
-        PopupField::State => PopupField::IV,
-        PopupField::IV => PopupField::Key,
-        PopupField::Key => PopupField::Name,
-        _ => current,
+    pub fn cancel(&self) {
+        self.cancellation_token.cancel();
     }
-}
 
-fn prev_focus(current: PopupField) -> PopupField {
-    match current {
-        PopupField::Name => PopupField::Key,
-        PopupField::Algorithm => PopupField::Name,
-        PopupField::State => PopupField::Algorithm,
-        PopupField::IV => PopupField::State,
-        PopupField::Key => PopupField::IV,
-        _ => current,
+    pub fn suspend(&mut self) -> Result<()> {
+        self.exit()?;
+        #[cfg(not(windows))]
+        signal_hook::low_level::raise(signal_hook::consts::signal::SIGTSTP)?;
+        Ok(())
+    }
+
+    pub fn resume(&mut self) -> Result<()> {
+        self.enter()?;
+        Ok(())
+    }
+
+    pub async fn next_event(&mut self) -> Option<Event> {
+        self.event_rx.recv().await
     }
 }
 
-fn next_focus_encrypt_decrypt(current: PopupField) -> PopupField {
-    match current {
-        PopupField::TextInput => PopupField::EncryptButton,
-        PopupField::EncryptButton => PopupField::DecryptButton,
-        PopupField::DecryptButton => PopupField::TextInput,
-        _ => current,
+impl Deref for Tui {
+    type Target = ratatui::Terminal<Backend<Stdout>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.terminal
     }
 }
 
-fn prev_focus_encrypt_decrypt(current: PopupField) -> PopupField {
-    match current {
-        PopupField::TextInput => PopupField::DecryptButton,
-        PopupField::EncryptButton => PopupField::TextInput,
-        PopupField::DecryptButton => PopupField::EncryptButton,
-        _ => current,
+impl DerefMut for Tui {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.terminal
+    }
+}
+
+impl Drop for Tui {
+    fn drop(&mut self) {
+        self.exit().unwrap();
     }
 }

@@ -1,18 +1,61 @@
-use std::{default, fs};
+use std::fs;
 
 use config::{ConfigError, File};
 use serde::{Deserialize, Serialize};
 use smart_default::SmartDefault;
 
-use crate::{env::Environment, error::env::EnvironmentError};
+use crate::errors::env_error::EnvironmentError;
 
-#[derive(Serialize, Deserialize, Debug, SmartDefault)]
-pub struct EnvironmentsConfig {
-    #[default(vec![])]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, Copy, PartialEq, Eq)]
+pub enum Algorithm {
+    #[default]
+    AES,
+    Blowfish,
+    DES,
+    DESede,
+    RC2,
+    RCA,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default, Copy, PartialEq, Eq)]
+pub enum State {
+    #[default]
+    CBC,
+    CFB,
+    ECB,
+    OFB,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Environment {
+    pub name: String,
+    pub algorithm: Algorithm,
+    pub state: State,
+    pub use_random_ivs: bool,
+    pub key: String,
+}
+
+impl Environment {
+    pub fn new<A>(name: A, algorithm: Algorithm, state: State, use_random_ivs: bool, key: A) -> Self
+    where
+        A: Into<String>,
+    {
+        Self {
+            name: name.into(),
+            algorithm,
+            state,
+            use_random_ivs,
+            key: key.into(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, SmartDefault, Clone)]
+pub struct Environments {
     pub environments: Vec<Environment>,
 }
 
-impl EnvironmentsConfig {
+impl Environments {
     pub fn new(conf_file: impl AsRef<str>) -> Result<Self, ConfigError> {
         let s = config::Config::builder().add_source(File::with_name(conf_file.as_ref()));
 
