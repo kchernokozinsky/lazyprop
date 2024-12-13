@@ -10,7 +10,7 @@ use tracing::{debug, info};
 
 use crate::{
     action::Action,
-    components::{fps::FpsCounter, home::Home, Component},
+    components::{home::Home, Component},
     config::Config,
     panes::{header::HeaderPane, Pane},
     state::State,
@@ -44,7 +44,7 @@ impl App {
         Ok(Self {
             tick_rate,
             frame_rate,
-            components: vec![Box::new(Home::new()?), Box::new(FpsCounter::default())],
+            components: vec![Box::new(Home::new()?)],
             should_quit: false,
             should_suspend: false,
             header: HeaderPane::new(),
@@ -181,7 +181,12 @@ impl App {
                 Constraint::Max(1),
             ])
             .split(frame.area());
-            self.header.draw(frame, vertical_layout[0], &self.state);
+
+            if let Err(err) = self.header.draw(frame, vertical_layout[0], &self.state) {
+                let _ = self
+                    .action_tx
+                    .send(Action::Error(format!("Failed to draw: {:?}", err)));
+            }
 
             for component in self.components.iter_mut() {
                 if let Err(err) = component.draw(frame, vertical_layout[1], &self.state) {

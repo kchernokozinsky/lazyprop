@@ -9,60 +9,55 @@ use ratatui::{
 use crate::{action::Action, panes::Pane};
 
 pub struct StatusPane {
-    config: Config,
-    focused: bool,
-    focused_border_style: Style,
+    message: String,
+    is_error: bool,
 }
 
 impl StatusPane {
-    pub fn new(focused: bool, focused_border_style: Style, config: Config) -> Self {
+    pub fn new() -> Self {
         Self {
-            config,
-            focused,
-            focused_border_style,
+            message: String::new(),
+            is_error: false,
         }
     }
 
     fn border_style(&self) -> Style {
-        match self.focused {
-            true => self.focused_border_style,
-            false => Style::default(),
-        }
+        Style::default()
     }
 
     fn border_type(&self) -> BorderType {
-        match self.focused {
-            true => BorderType::Thick,
-            false => BorderType::Plain,
-        }
+        BorderType::Plain
+    }
+}
+
+impl Default for StatusPane {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
 impl Pane for StatusPane {
     fn height_constraint(&self) -> Constraint {
-        match self.focused {
-            true => Constraint::Fill(3),
-            false => Constraint::Fill(3),
-        }
+        Constraint::Fill(3)
     }
 
-    fn update(&mut self, action: Action, state: &mut State) -> Result<Option<Action>> {
+    fn update(&mut self, action: Action, _state: &mut State) -> Result<Option<Action>> {
         match action {
-            Action::Focus => {
-                self.focused = true;
+            Action::Error(message) => {
+                self.message = message;
+                self.is_error = true;
             }
-            Action::UnFocus => {
-                self.focused = false;
+            Action::Message(message) => {
+                self.message = message;
+                self.is_error = false;
             }
-            Action::Submit => {}
-            Action::Update => {}
             _ => {}
         }
 
         Ok(None)
     }
 
-    fn draw(&mut self, frame: &mut Frame<'_>, area: Rect, state: &State) -> Result<()> {
+    fn draw(&mut self, frame: &mut Frame<'_>, area: Rect, _state: &State) -> Result<()> {
         let status_block = Block::default()
             .title(" Status ")
             .borders(Borders::ALL)
@@ -77,25 +72,12 @@ impl Pane for StatusPane {
             .direction(Direction::Vertical)
             .margin(1) // Padding inside the block
             .constraints([
-                Constraint::Percentage(50), // For configuration paths
-                Constraint::Percentage(50), // For status messages
+                Constraint::Fill(1), // For configuration paths // For status messages
             ])
             .split(area);
 
-        // Prepare the configuration paths text
-        let config_text = "";
-
-        // Create a Paragraph for configuration paths
-        let config_paragraph = Paragraph::new(config_text)
-            .style(Style::default().fg(Color::Black))
-            .alignment(Alignment::Left)
-            .wrap(ratatui::widgets::Wrap { trim: true });
-
-        // Render the configuration paths Paragraph
-        frame.render_widget(config_paragraph, inner_area[0]);
-
         // Prepare the status message text
-        let status_message = "TO DO".to_string();
+        let status_message = self.message.clone();
 
         let status_text = vec![Span::raw(status_message)];
         // Add more status lines if needed;
@@ -107,8 +89,12 @@ impl Pane for StatusPane {
             .wrap(ratatui::widgets::Wrap { trim: true });
 
         // Render the status messages Paragraph
-        frame.render_widget(status_paragraph, inner_area[1]);
+        frame.render_widget(status_paragraph, inner_area[0]);
 
         Ok(())
+    }
+
+    fn focusable(&self) -> bool {
+        false
     }
 }
