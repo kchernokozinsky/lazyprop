@@ -10,6 +10,7 @@ use crate::{action::Action, state::State, tui::Event};
 pub mod details;
 pub mod envs;
 pub mod header;
+pub mod search;
 pub mod status;
 
 pub trait Pane {
@@ -27,6 +28,8 @@ pub trait Pane {
         };
         Ok(r)
     }
+
+    fn focusable(&self) -> bool;
 
     fn handle_key_events(&mut self, _key: KeyEvent, _state: &mut State) -> Result<Option<Action>> {
         Ok(None)

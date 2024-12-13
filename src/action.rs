@@ -11,6 +11,7 @@ pub enum Action {
     Quit,
     ClearScreen,
     Error(String),
+    Message(String),
     Help,
     Down,
     Up,
@@ -20,4 +21,5 @@ pub enum Action {
     Focus,
     UnFocus,
     Submit,
+    Input(char),
 }

@@ -1,5 +1,6 @@
 use crate::{config::Config, environment::Environments};
 use color_eyre::Result;
+#[derive(Debug)]
 pub struct State {
     pub envs: Environments,
     current_env_index: usize,

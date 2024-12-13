@@ -36,4 +36,8 @@ impl Pane for HeaderPane {
 
         Ok(())
     }
+
+    fn focusable(&self) -> bool {
+        false
+    }
 }

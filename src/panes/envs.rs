@@ -1,3 +1,5 @@
+use std::fmt::format;
+
 use crate::{config::Config, state::State};
 use color_eyre::eyre::Result;
 use ratatui::{
@@ -7,6 +9,7 @@ use ratatui::{
 
 use crate::{action::Action, panes::Pane};
 
+#[derive(Debug)]
 pub struct EnvsPane {
     config: Config,
     focused: bool,
@@ -47,12 +50,14 @@ impl Pane for EnvsPane {
 
     fn update(&mut self, action: Action, state: &mut State) -> Result<Option<Action>> {
         match action {
+            Action::Tick => {}
             Action::Down => {
                 state.next();
-                return Ok(Some(Action::Update));
+                return Ok(Some(Action::Message(format!("{:?}", state))));
             }
             Action::Up => {
                 state.prev();
+                return Ok(Some(Action::Message(format!("{:?}", state))));
             }
             Action::Focus => {
                 self.focused = true;
@@ -92,7 +97,7 @@ impl Pane for EnvsPane {
                 .border_type(self.border_type())
                 .title_bottom(
                     Line::from(format!(
-                        "{} of {}",
+                        " {} of {} ",
                         state.cur().saturating_add(1).min(state.envs.len()),
                         state.envs.len()
                     ))
@@ -101,5 +106,9 @@ impl Pane for EnvsPane {
             area,
         );
         Ok(())
+    }
+
+    fn focusable(&self) -> bool {
+        true
     }
 }

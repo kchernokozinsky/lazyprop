@@ -1,4 +1,3 @@
-use crate::{config::Config, state::State};
 use color_eyre::eyre::Result;
 use ratatui::{
     prelude::*,
@@ -6,65 +5,41 @@ use ratatui::{
     widgets::{block::*, *},
 };
 
-use crate::{action::Action, panes::Pane};
+use crate::{panes::Pane, state::State};
 
-pub struct DetailsPane {
-    config: Config,
-    focused: bool,
-    focused_border_style: Style,
-}
+pub struct DetailsPane {}
 
 impl DetailsPane {
-    pub fn new(focused: bool, focused_border_style: Style, config: Config) -> Self {
-        Self {
-            config,
-            focused,
-            focused_border_style,
-        }
+    pub fn new() -> Self {
+        Self {}
     }
 
     fn border_style(&self) -> Style {
-        match self.focused {
-            true => self.focused_border_style,
-            false => Style::default(),
-        }
+        Style::default()
     }
 
     fn border_type(&self) -> BorderType {
-        match self.focused {
-            true => BorderType::Thick,
-            false => BorderType::Plain,
-        }
+        BorderType::Plain
+    }
+}
+
+impl Default for DetailsPane {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
 impl Pane for DetailsPane {
     fn height_constraint(&self) -> Constraint {
-        match self.focused {
-            true => Constraint::Fill(3),
-            false => Constraint::Fill(3),
-        }
+        Constraint::Fill(3)
     }
 
-    fn update(&mut self, action: Action, _state: &mut State) -> Result<Option<Action>> {
-        match action {
-            Action::Focus => {
-                self.focused = true;
-            }
-            Action::UnFocus => {
-                self.focused = false;
-            }
-            Action::Submit => {}
-            Action::Update => {}
-            _ => {}
-        }
-
-        Ok(None)
-    }
-
-    fn draw(&mut self, frame: &mut Frame<'_>, area: Rect, _state: &State) -> Result<()> {
+    fn draw(&mut self, frame: &mut Frame<'_>, area: Rect, state: &State) -> Result<()> {
         let status_block = Block::default()
-            .title(" Details ")
+            .title(format!(
+                " {} Details ",
+                state.envs.get(state.cur())?.name.clone()
+            ))
             .borders(Borders::ALL)
             .border_style(self.border_style())
             .border_type(self.border_type());
@@ -77,16 +52,7 @@ impl Pane for DetailsPane {
             .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
             .split(area);
 
-        let config_text = "";
-
-        let config_paragraph = Paragraph::new(config_text)
-            .style(Style::default().fg(Color::Black))
-            .alignment(Alignment::Left)
-            .wrap(ratatui::widgets::Wrap { trim: true });
-
-        frame.render_widget(config_paragraph, inner_area[0]);
-
-        let status_message = "TO DO".to_string();
+        let status_message = state.envs.get(state.cur())?.name.clone();
 
         let status_text = vec![Span::raw(status_message)];
 
@@ -98,5 +64,9 @@ impl Pane for DetailsPane {
         frame.render_widget(status_paragraph, inner_area[1]);
 
         Ok(())
+    }
+
+    fn focusable(&self) -> bool {
+        false
     }
 }
