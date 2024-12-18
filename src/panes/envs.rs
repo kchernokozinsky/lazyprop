@@ -1,6 +1,4 @@
-use std::fmt::format;
-
-use crate::{config::Config, state::State};
+use crate::state::{InputMode, State};
 use color_eyre::eyre::Result;
 use ratatui::{
     prelude::*,
@@ -11,15 +9,13 @@ use crate::{action::Action, panes::Pane};
 
 #[derive(Debug)]
 pub struct EnvsPane {
-    config: Config,
     focused: bool,
     focused_border_style: Style,
 }
 
 impl EnvsPane {
-    pub fn new(focused: bool, focused_border_style: Style, config: Config) -> Self {
+    pub fn new(focused: bool, focused_border_style: Style) -> Self {
         Self {
-            config,
             focused,
             focused_border_style,
         }
@@ -43,7 +39,7 @@ impl EnvsPane {
 impl Pane for EnvsPane {
     fn height_constraint(&self) -> Constraint {
         match self.focused {
-            true => Constraint::Fill(3),
+            true => Constraint::Fill(2),
             false => Constraint::Fill(2),
         }
     }
@@ -61,6 +57,8 @@ impl Pane for EnvsPane {
             }
             Action::Focus => {
                 self.focused = true;
+                state.input_mode = InputMode::Normal;
+                return Ok(Some(Action::Message(format!("{:?}", state))));
             }
             Action::UnFocus => {
                 self.focused = false;
@@ -80,7 +78,10 @@ impl Pane for EnvsPane {
             .clone()
             .into_iter()
             .map(|env| env.name)
+            .filter(|e| e.starts_with(state.search_query.clone().unwrap_or_default().as_str()))
             .collect();
+
+
         let list = List::new(items)
             .block(Block::default().borders(Borders::ALL))
             .highlight_symbol(symbols::scrollbar::HORIZONTAL.end)

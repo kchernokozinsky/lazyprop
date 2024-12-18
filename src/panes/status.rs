@@ -1,4 +1,4 @@
-use crate::{config::Config, state::State};
+use crate::state::State;
 use color_eyre::eyre::Result;
 use ratatui::{
     prelude::*,
@@ -38,7 +38,7 @@ impl Default for StatusPane {
 
 impl Pane for StatusPane {
     fn height_constraint(&self) -> Constraint {
-        Constraint::Fill(3)
+        Constraint::Fill(1)
     }
 
     fn update(&mut self, action: Action, _state: &mut State) -> Result<Option<Action>> {

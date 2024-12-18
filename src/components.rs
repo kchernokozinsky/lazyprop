@@ -8,9 +8,9 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{action::Action, config::Config, state::State, tui::Event};
 
-pub mod home;
-pub mod history;
 pub mod file_manager;
+pub mod history;
+pub mod home;
 
 /// `Component` is a trait that represents a visual and interactive element of the user interface.
 ///
@@ -65,9 +65,9 @@ pub trait Component {
     /// # Returns
     ///
     /// * `Result<Option<Action>>` - An action to be processed or none.
-    fn handle_events(&mut self, event: Option<Event>) -> Result<Option<Action>> {
+    fn handle_events(&mut self, event: Option<Event>, state: &State) -> Result<Option<Action>> {
         let action = match event {
-            Some(Event::Key(key_event)) => self.handle_key_event(key_event)?,
+            Some(Event::Key(key_event)) => self.handle_key_event(key_event, state)?,
             Some(Event::Mouse(mouse_event)) => self.handle_mouse_event(mouse_event)?,
             _ => None,
         };
@@ -82,7 +82,7 @@ pub trait Component {
     /// # Returns
     ///
     /// * `Result<Option<Action>>` - An action to be processed or none.
-    fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
+    fn handle_key_event(&mut self, key: KeyEvent, _state: &State) -> Result<Option<Action>> {
         let _ = key; // to appease clippy
         Ok(None)
     }

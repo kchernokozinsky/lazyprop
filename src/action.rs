@@ -22,4 +22,8 @@ pub enum Action {
     UnFocus,
     Submit,
     Input(char),
+    Backspace,
+    Main, 
+    History, 
+    FileManager,
 }

@@ -2,14 +2,38 @@
   "jar_path": "secure-properties-tool.jar",
   "envs_path": "envs.yaml",
   "keybindings": {
-    "Home": {
+    "Main": {
       "<q>": "Quit", 
       "<Ctrl-d>": "Quit", 
       "<Ctrl-c>": "Quit", 
       "<Ctrl-z>": "Suspend",
       "<Down>": "Down",
       "<Up>": "Up",
-      "<Tab>": "Tab"
+      "<Tab>": "Tab",
+      "<h>": "History",
+      "<f>": "FileManager"
+    },
+    "History": {
+      "<q>": "Quit", 
+      "<Ctrl-d>": "Quit", 
+      "<Ctrl-c>": "Quit", 
+      "<Ctrl-z>": "Suspend",
+      "<Down>": "Down",
+      "<Up>": "Up",
+      "<Tab>": "Tab",
+      "<m>": "Main",
+      "<f>": "FileManager"
+    },
+    "FileManager": {
+      "<q>": "Quit", 
+      "<Ctrl-d>": "Quit", 
+      "<Ctrl-c>": "Quit", 
+      "<Ctrl-z>": "Suspend",
+      "<Down>": "Down",
+      "<Up>": "Up",
+      "<Tab>": "Tab",
+      "<m>": "Main",
+      "<h>": "History"
     }
   }
 }
