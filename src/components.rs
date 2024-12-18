@@ -9,6 +9,8 @@ use tokio::sync::mpsc::UnboundedSender;
 use crate::{action::Action, config::Config, state::State, tui::Event};
 
 pub mod home;
+pub mod history;
+pub mod file_manager;
 
 /// `Component` is a trait that represents a visual and interactive element of the user interface.
 ///
