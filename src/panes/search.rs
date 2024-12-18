@@ -1,7 +1,6 @@
-use std::fmt::format;
-
-use crate::{config::Config, state::State};
+use crate::state::{InputMode, State};
 use color_eyre::eyre::Result;
+use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     prelude::*,
     widgets::{block::*, *},
@@ -11,16 +10,14 @@ use crate::{action::Action, panes::Pane};
 
 #[derive(Debug)]
 pub struct SearchPane {
-    config: Config,
     focused: bool,
     focused_border_style: Style,
     input: Option<String>,
 }
 
 impl SearchPane {
-    pub fn new(focused: bool, focused_border_style: Style, config: Config) -> Self {
+    pub fn new(focused: bool, focused_border_style: Style) -> Self {
         Self {
-            config,
             focused,
             focused_border_style,
             input: None,
@@ -40,12 +37,6 @@ impl SearchPane {
             false => BorderType::Plain,
         }
     }
-    fn input_length(&self) -> usize {
-        match &self.input {
-            Some(input) => input.len(),
-            None => 0,
-        }
-    }
 }
 
 impl Pane for SearchPane {
@@ -53,20 +44,42 @@ impl Pane for SearchPane {
         Constraint::Max(3)
     }
 
+    fn handle_key_events(&mut self, key: KeyEvent, state: &mut State) -> Result<Option<Action>> {
+        match state.input_mode {
+            InputMode::Insert => match key.code {
+                KeyCode::Char(c) => Ok(Some(Action::Input(c))),
+                _ => Ok(None),
+            },
+            _ => Ok(None),
+        }
+    }
+
     fn update(&mut self, action: Action, state: &mut State) -> Result<Option<Action>> {
         match action {
             Action::Tick => {}
-            Action::Input(c) => {
-                // Append character to input
-                match self.input {
-                    Some(ref mut s) => s.push(c),
-                    None => self.input = Some(format!("{}", c)),
-                }
+            Action::Input(c) => { match self.input {
+                Some(ref mut s) => s.push(c),
+                None => self.input = Some(format!("{}", c)),
+            }
+            state.search_query = self.input.clone();
+        },
+            Action::Backspace => {
+                if let Some(ref mut s) = self.input {
+                    match s.pop() {
+                        Some(_) => {}
+                        None => self.input = None,
+                    };
+                };
+
+                state.search_query = self.input.clone();
             }
             Action::Focus => {
                 self.focused = true;
+                state.input_mode = InputMode::Insert;
+                return Ok(Some(Action::Message(format!("{:?}", state))));
             }
             Action::UnFocus => {
+                state.input_mode = InputMode::Normal;
                 self.focused = false;
             }
             Action::Submit => {}
@@ -77,20 +90,18 @@ impl Pane for SearchPane {
         Ok(None)
     }
 
-    fn draw(&mut self, frame: &mut Frame<'_>, area: Rect, state: &State) -> Result<()> {
+    fn draw(&mut self, frame: &mut Frame<'_>, area: Rect, _state: &State) -> Result<()> {
         let search_block = Block::default()
             .title(" Search ")
             .borders(Borders::ALL)
             .border_style(self.border_style())
             .border_type(self.border_type());
 
-        // Render the block
         frame.render_widget(search_block, area);
 
-        // Define the inner area within the block with padding
         let inner_area = Layout::default()
             .direction(Direction::Vertical)
-            .margin(1) // Padding inside the block
+            .margin(1)
             .constraints([Constraint::Max(1000)])
             .split(area)[0];
 
@@ -105,20 +116,17 @@ impl Pane for SearchPane {
             )
         };
 
-        // Optionally, add a cursor when focused
         let display_input = if self.focused && self.input.is_some() {
-            Line::from(vec![input_text, Span::raw("▌")]) // ▌ as cursor
+            Line::from(vec![input_text, Span::raw("▌")])
         } else {
             Line::from(vec![input_text])
         };
 
-        // Create a Paragraph for the search input
         let search_paragraph = Paragraph::new(display_input)
-            .style(Style::default().fg(Color::White))
+            .style(Style::default().fg(Color::Black))
             .alignment(Alignment::Left)
             .wrap(ratatui::widgets::Wrap { trim: true });
 
-        // Render the search input Paragraph
         frame.render_widget(search_paragraph, inner_area);
 
         Ok(())

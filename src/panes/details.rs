@@ -31,7 +31,7 @@ impl Default for DetailsPane {
 
 impl Pane for DetailsPane {
     fn height_constraint(&self) -> Constraint {
-        Constraint::Fill(3)
+        Constraint::Fill(1)
     }
 
     fn draw(&mut self, frame: &mut Frame<'_>, area: Rect, state: &State) -> Result<()> {

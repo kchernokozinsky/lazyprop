@@ -25,10 +25,10 @@ impl Home {
             command_tx: None,
             config: Config::default(),
             panes: vec![
-                Box::new(EnvsPane::new(true, focused_border_style, Config::new()?)),
+                Box::new(EnvsPane::new(true, focused_border_style)),
                 Box::new(StatusPane::new()),
                 Box::new(DetailsPane::new()),
-                Box::new(SearchPane::new(false, focused_border_style, Config::new()?)),
+                Box::new(SearchPane::new(false, focused_border_style)),
             ],
 
             focused_pane_index: 0,
@@ -65,11 +65,17 @@ impl Component for Home {
             Action::Tab => {
                 self.panes[self.focused_pane_index].update(Action::UnFocus, state)?;
                 self.next_focused_pane();
-                self.panes[self.focused_pane_index].update(Action::Focus, state)?;
+                return self.panes[self.focused_pane_index].update(Action::Focus, state);
             }
             Action::Error(message) => return self.panes[1].update(Action::Error(message), state),
             Action::Message(message) => {
                 return self.panes[1].update(Action::Message(message), state)
+            }
+            Action::Input(c) => {
+                return self.panes[self.focused_pane_index].update(Action::Input(c), state)
+            }
+            Action::Backspace => {
+                return self.panes[self.focused_pane_index].update(Action::Backspace, state)
             }
             _ => {}
         }
@@ -87,7 +93,11 @@ impl Component for Home {
 
             let bottom_layout = Layout::default()
                 .direction(Direction::Vertical)
-                .constraints(vec![Constraint::Fill(1), Constraint::Max(10)])
+                .constraints(vec![
+                    self.panes[3].height_constraint(),
+                    self.panes[0].height_constraint(),
+                    self.panes[1].height_constraint(),
+                ])
                 .split(area);
 
             let left_panes = Layout::default()
@@ -102,14 +112,15 @@ impl Component for Home {
             let right_panes = Layout::default()
                 .direction(Direction::Vertical)
                 .constraints(vec![
-                    self.panes[2].height_constraint(),
-                    self.panes[2].height_constraint(),
+                    self.panes[3].height_constraint(),
+                    self.panes[0].height_constraint(),
+                    self.panes[1].height_constraint(),
                 ])
                 .split(outer_layout[1]);
 
             self.panes[0].draw(frame, left_panes[1], state)?;
-            self.panes[2].draw(frame, right_panes[0], state)?;
-            self.panes[1].draw(frame, bottom_layout[1], state)?;
+            self.panes[2].draw(frame, right_panes[1], state)?;
+            self.panes[1].draw(frame, bottom_layout[2], state)?;
             self.panes[3].draw(frame, left_panes[0], state)?;
         }
         Ok(())

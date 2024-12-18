@@ -1,5 +1,5 @@
 use color_eyre::Result;
-use crossterm::event::KeyEvent;
+use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     layout::{Constraint, Layout},
     prelude::Rect,
@@ -13,7 +13,7 @@ use crate::{
     components::{home::Home, Component},
     config::Config,
     panes::{header::HeaderPane, Pane},
-    state::State,
+    state::{InputMode, State},
     tui::{Event, Tui},
 };
 
@@ -30,14 +30,14 @@ pub struct App {
     action_tx: mpsc::UnboundedSender<Action>,
     action_rx: mpsc::UnboundedReceiver<Action>,
     state: State,
-} 
+}
 
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Mode {
     #[default]
-    Home,
+    Main,
     History,
-    FileManager
+    FileManager,
 }
 
 impl App {
@@ -51,7 +51,7 @@ impl App {
             should_suspend: false,
             header: HeaderPane::new(),
             config: Config::new()?,
-            mode: Mode::Home,
+            mode: Mode::Main,
             last_tick_key_events: Vec::new(),
             action_tx,
             action_rx,
@@ -86,7 +86,6 @@ impl App {
                 tui.suspend()?;
                 action_tx.send(Action::Resume)?;
                 action_tx.send(Action::ClearScreen)?;
-                // tui.mouse(true);
                 tui.enter()?;
             } else if self.should_quit {
                 tui.stop()?;
@@ -103,7 +102,9 @@ impl App {
         };
         let action_tx = self.action_tx.clone();
         match event {
-            Event::Quit => action_tx.send(Action::Quit)?,
+            Event::Quit if self.state.input_mode == InputMode::Normal => {
+                action_tx.send(Action::Quit)?
+            }
             Event::Tick => action_tx.send(Action::Tick)?,
             Event::Render => action_tx.send(Action::Render)?,
             Event::Resize(x, y) => action_tx.send(Action::Resize(x, y))?,
@@ -111,7 +112,7 @@ impl App {
             _ => {}
         }
         for component in self.components.iter_mut() {
-            if let Some(action) = component.handle_events(Some(event.clone()))? {
+            if let Some(action) = component.handle_events(Some(event.clone()), &self.state)? {
                 action_tx.send(action)?;
             }
         }
@@ -123,23 +124,39 @@ impl App {
         let Some(keymap) = self.config.keybindings.get(&self.mode) else {
             return Ok(());
         };
+
+        if self.state.input_mode == InputMode::Insert {
+            return self.handle_input_key_event(key);
+        }
+
         match keymap.get(&vec![key]) {
             Some(action) => {
                 info!("Got action: {action:?}");
                 action_tx.send(action.clone())?;
             }
             _ => {
-                // If the key was not handled as a single key action,
-                // then consider it for multi-key combinations.
                 self.last_tick_key_events.push(key);
 
-                // Check for multi-key combinations
                 if let Some(action) = keymap.get(&self.last_tick_key_events) {
                     info!("Got action: {action:?}");
                     action_tx.send(action.clone())?;
                 }
             }
         }
+        Ok(())
+    }
+
+    fn handle_input_key_event(&mut self, key: KeyEvent) -> Result<()> {
+        let action_tx = self.action_tx.clone();
+        let action = match key.code {
+            KeyCode::Tab => Action::Tab,
+            KeyCode::Backspace => Action::Backspace,
+            KeyCode::Char(c) => Action::Input(c),
+            _ => return Ok(()),
+        };
+
+        action_tx.send(action)?;
+
         Ok(())
     }
 
