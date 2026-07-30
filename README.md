@@ -18,19 +18,53 @@ Runs on **macOS, Linux and Windows**.
 
 ## Installation
 
-Download a prebuilt binary for your platform from the
-[Releases](https://github.com/kchernokozinsky/lazyprop/releases) page, or build
-from source with Cargo:
+### macOS / Linux — Homebrew
+
+```bash
+brew install kchernokozinsky/tap/lazyprop
+```
+
+The formula pulls in a Java runtime automatically, so nothing else is needed.
+
+### Windows — Scoop
+
+```powershell
+scoop bucket add lazyprop https://github.com/kchernokozinsky/scoop-bucket
+scoop install lazyprop
+```
+
+If you don't have Java yet:
+
+```powershell
+scoop bucket add java
+scoop install temurin-jre
+```
+
+### Windows — manual
+
+1. Download `lazyprop-x86_64-pc-windows-msvc.zip` from the
+   [Releases](https://github.com/kchernokozinsky/lazyprop/releases) page and
+   extract `lazyprop.exe`.
+2. Move it to a folder on your `PATH` (e.g. `%USERPROFILE%\bin`), or add its
+   folder to `PATH` via *Settings → Environment Variables*.
+3. Install a Java runtime if you don't have one — e.g.
+   [Adoptium Temurin](https://adoptium.net/temurin/releases/) — and make sure
+   `java` is on your `PATH`.
+4. Open a new terminal and run `lazyprop`.
+
+### Any platform — prebuilt binary
+
+Download the archive for your platform from the
+[Releases](https://github.com/kchernokozinsky/lazyprop/releases) page, extract
+the `lazyprop` binary, and put it on your `PATH`. You still need `java`
+available (see [Requirements](#requirements)).
+
+### From source
 
 ```bash
 cargo install --git https://github.com/kchernokozinsky/lazyprop
-```
-
-Or from a checkout:
-
-```bash
+# or, from a checkout:
 cargo build --release   # binary at ./target/release/lazyprop
-cargo install --path .
 ```
 
 ## Usage

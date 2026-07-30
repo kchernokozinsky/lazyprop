@@ -34,4 +34,5 @@ jobs:
           target: ${{ matrix.target }}
           tar: unix
           zip: windows
+          checksum: sha256
           token: ${{ secrets.GITHUB_TOKEN }}
