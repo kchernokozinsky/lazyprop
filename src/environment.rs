@@ -40,6 +40,47 @@ impl Algorithm {
     pub fn cycle(self, forward: bool) -> Self {
         cycle_variant(&Self::ALL, self, forward)
     }
+
+    /// Cipher modes the MuleSoft Secure Properties Tool accepts for this
+    /// algorithm. Determined empirically against the bundled jar: every block
+    /// cipher supports the four standard modes, while RCA (RC4) is a stream
+    /// cipher the tool does not accept with any mode.
+    pub fn modes(self) -> &'static [State] {
+        const BLOCK: [State; 4] = [State::CBC, State::CFB, State::ECB, State::OFB];
+        match self {
+            Algorithm::RCA => &[],
+            _ => &BLOCK,
+        }
+    }
+
+    /// The preferred default mode for this algorithm (CBC where supported).
+    pub fn default_mode(self) -> Option<State> {
+        self.modes().first().copied()
+    }
+
+    /// Whether this algorithm has any usable modes (and so can encrypt).
+    pub fn supports_modes(self) -> bool {
+        !self.modes().is_empty()
+    }
+
+    /// Keep `mode` if it is valid for this algorithm, otherwise fall back to the
+    /// default (first valid) mode — or leave it unchanged if there are none.
+    pub fn reconcile_mode(self, mode: State) -> State {
+        if self.modes().contains(&mode) {
+            mode
+        } else {
+            self.default_mode().unwrap_or(mode)
+        }
+    }
+
+    /// Cycle to the next/previous mode among those valid for this algorithm.
+    pub fn cycle_mode(self, current: State, forward: bool) -> State {
+        let modes = self.modes();
+        if modes.is_empty() {
+            return current;
+        }
+        cycle_variant(modes, self.reconcile_mode(current), forward)
+    }
 }
 
 impl State {
@@ -186,6 +227,43 @@ mod tests {
         assert_eq!(State::CBC.cycle(true), State::CFB);
         assert_eq!(State::CBC.cycle(false), State::OFB);
         assert_eq!(State::OFB.cycle(true), State::CBC);
+    }
+
+    #[test]
+    fn block_ciphers_support_all_four_modes() {
+        for alg in [
+            Algorithm::AES,
+            Algorithm::Blowfish,
+            Algorithm::DES,
+            Algorithm::DESede,
+            Algorithm::RC2,
+        ] {
+            let modes = alg.modes();
+            assert_eq!(modes.len(), 4, "{alg:?} should have four modes");
+            assert!(modes.contains(&State::CBC), "{alg:?} should include CBC");
+            // CBC is the preferred default.
+            assert_eq!(alg.default_mode(), Some(State::CBC));
+            assert!(alg.supports_modes());
+        }
+    }
+
+    #[test]
+    fn rca_is_a_stream_cipher_with_no_modes() {
+        assert!(Algorithm::RCA.modes().is_empty());
+        assert_eq!(Algorithm::RCA.default_mode(), None);
+        assert!(!Algorithm::RCA.supports_modes());
+    }
+
+    #[test]
+    fn reconcile_keeps_valid_and_resets_invalid_modes() {
+        // A valid mode is kept.
+        assert_eq!(Algorithm::AES.reconcile_mode(State::ECB), State::ECB);
+        // Switching to an algorithm without the current mode falls back to the
+        // default (CBC). RCA has no modes, so the value is left unchanged.
+        assert_eq!(Algorithm::RCA.reconcile_mode(State::CBC), State::CBC);
+        // cycle_mode stays within the algorithm's valid set.
+        assert_eq!(Algorithm::AES.cycle_mode(State::OFB, true), State::CBC);
+        assert_eq!(Algorithm::RCA.cycle_mode(State::CBC, true), State::CBC);
     }
 
     #[test]
