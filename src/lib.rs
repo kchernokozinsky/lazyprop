@@ -1,6 +1,7 @@
 pub mod action;
 pub mod app;
 pub mod cli;
+pub mod clipboard;
 pub mod components;
 pub mod config;
 pub mod dencrypt;
@@ -9,5 +10,6 @@ pub mod errors;
 pub mod logging;
 pub mod panes;
 pub mod state;
+pub mod text_field;
 pub mod theme;
 pub mod tui;
