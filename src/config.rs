@@ -3,7 +3,7 @@ use std::{collections::HashMap, env, path::PathBuf};
 use color_eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use derive_deref::{Deref, DerefMut};
-use directories::ProjectDirs;
+use directories::{BaseDirs, ProjectDirs};
 use lazy_static::lazy_static;
 use ratatui::style::{Color, Modifier, Style};
 use serde::{de::Deserializer, Deserialize};
@@ -126,6 +126,90 @@ pub fn get_config_dir() -> PathBuf {
 
 fn project_directory() -> Option<ProjectDirs> {
     ProjectDirs::from("com", "kchernokozinsky", env!("CARGO_PKG_NAME"))
+}
+
+/// The MuleSoft Secure Properties Tool jar, embedded so the binary is
+/// self-contained. It is written to the lazyprop home on first run.
+const JAR_BYTES: &[u8] = include_bytes!("../secure-properties-tool.jar");
+
+const JAR_FILE: &str = "secure-properties-tool.jar";
+const ENVS_FILE: &str = "envs.yaml";
+
+/// Starter environments file created in the lazyprop home on first run.
+const SAMPLE_ENVS: &str = "\
+# lazyprop environments.
+#
+# Each entry describes how the MuleSoft Secure Properties Tool encrypts and
+# decrypts values. `key` must be a valid length for the algorithm (e.g. 16
+# characters for AES).
+#
+#   algorithm: AES | Blowfish | DES | DESede | RC2
+#   state:     CBC | CFB | ECB | OFB
+environments:
+  - name: DefaultEnv
+    algorithm: AES
+    state: CBC
+    use_random_ivs: false
+    key: secret1234567890
+";
+
+/// The lazyprop home directory (Maven `.m2` style). Overridable with
+/// `LAZYPROP_HOME`; otherwise `~/.lazyprop`.
+pub fn lazyprop_home() -> PathBuf {
+    if let Ok(dir) = env::var("LAZYPROP_HOME") {
+        return PathBuf::from(dir);
+    }
+    if let Some(base) = BaseDirs::new() {
+        return base.home_dir().join(".lazyprop");
+    }
+    PathBuf::from(".lazyprop")
+}
+
+/// Resolve the environments file, creating a sample in the lazyprop home on
+/// first run. Order: `--envs` flag, `LAZYPROP_ENVS`, project-local
+/// `./envs.yaml`, then `~/.lazyprop/envs.yaml`.
+pub fn resolve_envs_path(cli: Option<String>) -> Result<PathBuf> {
+    if let Some(path) = cli {
+        return Ok(PathBuf::from(path));
+    }
+    if let Ok(path) = env::var("LAZYPROP_ENVS") {
+        return Ok(PathBuf::from(path));
+    }
+    let local = PathBuf::from(ENVS_FILE);
+    if local.exists() {
+        return Ok(local);
+    }
+    let home = lazyprop_home();
+    std::fs::create_dir_all(&home)?;
+    let global = home.join(ENVS_FILE);
+    if !global.exists() {
+        std::fs::write(&global, SAMPLE_ENVS)?;
+    }
+    Ok(global)
+}
+
+/// Resolve the Secure Properties Tool jar, extracting the embedded copy into
+/// the lazyprop home on first run. Order: `--jar` flag, `LAZYPROP_JAR`,
+/// project-local `./secure-properties-tool.jar`, then the extracted copy in
+/// `~/.lazyprop`.
+pub fn resolve_jar_path(cli: Option<String>) -> Result<PathBuf> {
+    if let Some(path) = cli {
+        return Ok(PathBuf::from(path));
+    }
+    if let Ok(path) = env::var("LAZYPROP_JAR") {
+        return Ok(PathBuf::from(path));
+    }
+    let local = PathBuf::from(JAR_FILE);
+    if local.exists() {
+        return Ok(local);
+    }
+    let home = lazyprop_home();
+    std::fs::create_dir_all(&home)?;
+    let global = home.join(JAR_FILE);
+    if !global.exists() {
+        std::fs::write(&global, JAR_BYTES)?;
+    }
+    Ok(global)
 }
 
 #[derive(Clone, Debug, Default, Deref, DerefMut)]

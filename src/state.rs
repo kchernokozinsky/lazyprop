@@ -3,7 +3,6 @@ use std::path::PathBuf;
 use crate::{
     action::Action,
     app::Mode,
-    config::Config,
     dencrypt::{decrypt, encrypt},
     environment::{Algorithm, Environment, Environments, State as CipherMode},
     text_field::TextField,
@@ -398,11 +397,12 @@ pub struct State {
 
 impl State {
     pub fn new(envs_path: Option<String>, jar_path: Option<String>) -> Result<State> {
-        let config = Config::new()?;
-        let envs_path = envs_path.unwrap_or(config.envs_path);
-        let jar_path = jar_path.unwrap_or(config.jar_path);
+        // Resolve the environments file and jar, honouring CLI flags, env vars,
+        // a project-local file, then the ~/.lazyprop home (created on first run).
+        let envs_path = crate::config::resolve_envs_path(envs_path)?;
+        let jar_path = crate::config::resolve_jar_path(jar_path)?;
         Ok(Self {
-            envs: Environments::new(&envs_path)?,
+            envs: Environments::new(envs_path.to_string_lossy())?,
             current_env_index: 0,
             input_mode: InputMode::default(),
             search_query: None,
@@ -411,8 +411,8 @@ impl State {
             result: None,
             busy: false,
             reveal_key: false,
-            jar_path: PathBuf::from(jar_path),
-            envs_path: PathBuf::from(envs_path),
+            jar_path,
+            envs_path,
             mode: Mode::default(),
             form: None,
             pending_delete: None,

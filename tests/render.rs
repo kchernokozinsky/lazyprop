@@ -117,7 +117,7 @@ fn search_filters_the_environment_list() {
 
 #[test]
 fn env_form_overlay_renders() {
-    let mut state = State::new(None, None).expect("state should load");
+    let mut state = State::new(Some(FIXTURE.to_string()), None).expect("state should load fixture");
     let mut home = Home::new().expect("home should build");
     state.open_add_form();
 
