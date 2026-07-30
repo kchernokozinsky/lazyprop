@@ -14,13 +14,19 @@
       "<Tab>": "Tab",
       "<e>": "Encrypt",
       "<d>": "Decrypt",
+      "<Ctrl-y>": "CopyResult",
+      "<r>": "ToggleReveal",
+      "<p>": "SendToPlayground",
       "</>": "Search",
       "<a>": "AddEnv",
       "<Enter>": "EditEnv",
       "<x>": "DeleteEnv",
       "<Esc>": "Escape",
       "<1>": "GoMain",
-      "<2>": "GoAbout",
+      "<2>": "GoPlayground",
+      "<3>": "GoAbout",
+      "<h>": "PrevScreen",
+      "<l>": "NextScreen",
       "<?>": "GoAbout"
     },
     "About": {
@@ -33,7 +39,10 @@
       "<s>": "Down",
       "<Down>": "Down",
       "<1>": "GoMain",
-      "<2>": "GoAbout",
+      "<2>": "GoPlayground",
+      "<3>": "GoAbout",
+      "<h>": "PrevScreen",
+      "<l>": "NextScreen",
       "<Esc>": "GoMain",
       "<?>": "GoMain"
     }

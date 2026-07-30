@@ -35,7 +35,11 @@ impl Pane for DetailsPane {
         };
 
         let label = theme::label();
-        let masked_key: String = "•".repeat(env.key.chars().count());
+        let key_display = if state.reveal_key {
+            env.key.clone()
+        } else {
+            "•".repeat(env.key.chars().count())
+        };
 
         let rows = [
             ("Name", env.name.clone()),
@@ -45,7 +49,18 @@ impl Pane for DetailsPane {
                 "Random IV",
                 if env.use_random_ivs { "yes" } else { "no" }.to_string(),
             ),
-            ("Key", masked_key),
+            (
+                "Key",
+                format!(
+                    "{}  {}",
+                    key_display,
+                    if state.reveal_key {
+                        "(r to hide)"
+                    } else {
+                        "(r to reveal)"
+                    }
+                ),
+            ),
         ];
 
         let lines: Vec<Line> = rows

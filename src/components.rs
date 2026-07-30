@@ -12,6 +12,7 @@ pub mod about;
 pub mod file_manager;
 pub mod history;
 pub mod home;
+pub mod playground;
 
 /// `Component` is a trait that represents a visual and interactive element of the user interface.
 ///

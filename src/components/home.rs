@@ -12,7 +12,7 @@ use crate::{
         details::DetailsPane, envs::EnvsPane, input::InputPane, result::ResultPane,
         status::StatusPane, Pane,
     },
-    state::{FormField, InputMode, Operation, State},
+    state::{FormField, InputMode, State},
     theme,
 };
 
@@ -71,9 +71,18 @@ impl Home {
     fn draw_env_form(&self, frame: &mut Frame, area: Rect, state: &State) {
         let Some(form) = &state.form else { return };
 
+        let popup = centered_rect(60, 60, area);
+        // Width available for a text field's value (borders + marker + label).
+        let field_width = (popup.width as usize).saturating_sub(2 + 2 + 12 + 1);
+
         let mut lines: Vec<Line> = vec![
             Line::raw(""),
-            form_text_line("Name", &form.name, form.field == FormField::Name),
+            form_text_line(
+                "Name",
+                &form.name,
+                form.field == FormField::Name,
+                field_width,
+            ),
             form_choice_line(
                 "Algorithm",
                 &format!("{:?}", form.algorithm),
@@ -81,7 +90,11 @@ impl Home {
             ),
             form_choice_line(
                 "Mode",
-                &format!("{:?}", form.cipher),
+                &if form.algorithm.supports_modes() {
+                    format!("{:?}", form.cipher)
+                } else {
+                    "n/a".to_string()
+                },
                 form.field == FormField::Mode,
             ),
             form_choice_line(
@@ -89,7 +102,7 @@ impl Home {
                 if form.use_random_ivs { "yes" } else { "no" },
                 form.field == FormField::RandomIv,
             ),
-            form_text_line("Key", &form.key, form.field == FormField::Key),
+            form_text_line("Key", &form.key, form.field == FormField::Key, field_width),
             Line::raw(""),
         ];
         if let Some(err) = &form.error {
@@ -103,7 +116,6 @@ impl Home {
             theme::hint(),
         )));
 
-        let popup = centered_rect(60, 60, area);
         frame.render_widget(Clear, popup);
         let block = Block::default()
             .title(form.title())
@@ -141,18 +153,20 @@ impl Home {
     }
 }
 
-fn form_text_line(label: &str, value: &str, active: bool) -> Line<'static> {
+fn form_text_line(
+    label: &str,
+    value: &crate::text_field::TextField,
+    active: bool,
+    width: usize,
+) -> Line<'static> {
     let mut spans = vec![
         Span::styled(
             if active { "▶ " } else { "  " },
             Style::default().fg(theme::ACCENT),
         ),
         Span::styled(format!("{label:>10}: "), theme::label()),
-        Span::raw(value.to_string()),
     ];
-    if active {
-        spans.push(Span::styled("▌", Style::default().fg(theme::ACCENT)));
-    }
+    spans.extend(value.spans(width, active, ""));
     Line::from(spans)
 }
 
@@ -205,28 +219,25 @@ impl Component for Home {
             Action::AddEnv => state.open_add_form(),
             Action::EditEnv => state.open_edit_form(),
             Action::DeleteEnv => state.request_delete(),
-            Action::Encrypt => {
-                state.run_crypto(Operation::Encrypt);
-                return Ok(Some(status_action(state, Operation::Encrypt)));
-            }
-            Action::Decrypt => {
-                state.run_crypto(Operation::Decrypt);
-                return Ok(Some(status_action(state, Operation::Decrypt)));
-            }
             Action::Input(c) => {
                 if state.searching {
                     state.push_search(c);
                 } else if self.focus == Focus::Input {
-                    return self.input.update(Action::Input(c), state);
+                    state.input_value.insert(c);
                 }
             }
             Action::Backspace => {
                 if state.searching {
                     state.pop_search();
                 } else if self.focus == Focus::Input {
-                    return self.input.update(Action::Backspace, state);
+                    state.input_value.backspace();
                 }
             }
+            Action::DeleteChar if self.focus == Focus::Input => state.input_value.delete(),
+            Action::CursorLeft if self.focus == Focus::Input => state.input_value.left(),
+            Action::CursorRight if self.focus == Focus::Input => state.input_value.right(),
+            Action::CursorHome if self.focus == Focus::Input => state.input_value.home(),
+            Action::CursorEnd if self.focus == Focus::Input => state.input_value.end(),
             Action::Error(_) | Action::Message(_) => return self.status.update(action, state),
             _ => {}
         }
@@ -261,24 +272,6 @@ impl Component for Home {
         }
         Ok(())
     }
-}
-
-/// Build a status-line action reflecting the outcome of the last crypto run.
-fn status_action(state: &State, op: Operation) -> Action {
-    match &state.result {
-        Some(res) => match &res.outcome {
-            Ok(_) => Action::Message(format!("{} value with '{}'.", op.label(), env_name(state))),
-            Err(e) => Action::Error(e.clone()),
-        },
-        None => Action::Message(String::new()),
-    }
-}
-
-fn env_name(state: &State) -> String {
-    state
-        .selected_env()
-        .map(|e| e.name.clone())
-        .unwrap_or_else(|| "?".to_string())
 }
 
 /// Compute a centered rectangle taking `percent_x`/`percent_y` of `area`.

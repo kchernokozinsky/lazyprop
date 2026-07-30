@@ -5,7 +5,7 @@ use ratatui::{
     widgets::{block::*, *},
 };
 
-use crate::{action::Action, panes::Pane, theme};
+use crate::{action::Action, panes::Pane};
 
 /// A single-line text input holding the value to encrypt or decrypt.
 #[derive(Debug)]
@@ -44,10 +44,6 @@ impl Pane for InputPane {
 
     fn update(&mut self, action: Action, state: &mut State) -> Result<Option<Action>> {
         match action {
-            Action::Input(c) => state.input_value.push(c),
-            Action::Backspace => {
-                state.input_value.pop();
-            }
             Action::Focus => {
                 self.focused = true;
                 state.input_mode = InputMode::Insert;
@@ -68,21 +64,13 @@ impl Pane for InputPane {
             .border_style(self.border_style())
             .border_type(self.border_type());
 
-        let line = if state.input_value.is_empty() && !self.focused {
-            Line::from(Span::styled(
-                "Focus with Tab, then type a value…",
-                theme::hint_italic(),
-            ))
-        } else if self.focused {
-            Line::from(vec![
-                Span::raw(state.input_value.clone()),
-                Span::styled("▌", Style::default().fg(theme::ACCENT)),
-            ])
-        } else {
-            Line::from(Span::raw(state.input_value.clone()))
-        };
-
-        let paragraph = Paragraph::new(line).block(block).wrap(Wrap { trim: false });
+        let inner_width = (area.width as usize).saturating_sub(2);
+        let spans = state.input_value.spans(
+            inner_width,
+            self.focused,
+            "Focus with Tab, then type a value…",
+        );
+        let paragraph = Paragraph::new(Line::from(spans)).block(block);
         frame.render_widget(paragraph, area);
         Ok(())
     }

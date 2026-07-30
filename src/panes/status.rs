@@ -54,7 +54,7 @@ impl Pane for StatusPane {
 
         let (text, style): (Span, Style) = if self.message.is_empty() {
             (
-                Span::raw("Ready. Press 2 for help & about."),
+                Span::raw("Ready. Press 2 for the playground, 3 for help."),
                 theme::hint_italic(),
             )
         } else if self.is_error {

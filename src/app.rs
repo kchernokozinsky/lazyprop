@@ -10,10 +10,10 @@ use tracing::{debug, info};
 
 use crate::{
     action::Action,
-    components::{about::AboutScreen, home::Home, Component},
+    components::{about::AboutScreen, home::Home, playground::PlaygroundScreen, Component},
     config::Config,
     panes::{footer::FooterPane, header::HeaderPane, Pane},
-    state::{InputMode, State},
+    state::{CryptoTarget, InputMode, Operation, State},
     tui::{Event, Tui},
 };
 
@@ -37,16 +37,30 @@ pub struct App {
 pub enum Mode {
     #[default]
     Main,
+    Playground,
     About,
 }
 
 impl Mode {
+    const ORDER: [Mode; 3] = [Mode::Main, Mode::Playground, Mode::About];
+
     /// Index of this screen's component in `App::components`.
     fn component_index(self) -> usize {
         match self {
             Mode::Main => 0,
-            Mode::About => 1,
+            Mode::Playground => 1,
+            Mode::About => 2,
         }
+    }
+
+    fn shift(self, forward: bool) -> Self {
+        let i = self.component_index();
+        let len = Self::ORDER.len();
+        Self::ORDER[if forward {
+            (i + 1) % len
+        } else {
+            (i + len - 1) % len
+        }]
     }
 }
 
@@ -61,7 +75,11 @@ impl App {
         Ok(Self {
             tick_rate,
             frame_rate,
-            components: vec![Box::new(Home::new()?), Box::new(AboutScreen::new())],
+            components: vec![
+                Box::new(Home::new()?),
+                Box::new(PlaygroundScreen::new()),
+                Box::new(AboutScreen::new()),
+            ],
             should_quit: false,
             should_suspend: false,
             header: HeaderPane::new(),
@@ -143,6 +161,10 @@ impl App {
         if self.state.pending_delete.is_some() {
             return self.handle_delete_key_event(key);
         }
+        // The playground is a self-contained form screen with its own keys.
+        if self.state.mode == Mode::Playground {
+            return self.handle_playground_key_event(key);
+        }
 
         let action_tx = self.action_tx.clone();
         let Some(keymap) = self.config.keybindings.get(&self.state.mode) else {
@@ -176,6 +198,11 @@ impl App {
             KeyCode::Tab => Action::Tab,
             KeyCode::Esc | KeyCode::Enter => Action::Escape,
             KeyCode::Backspace => Action::Backspace,
+            KeyCode::Delete => Action::DeleteChar,
+            KeyCode::Left => Action::CursorLeft,
+            KeyCode::Right => Action::CursorRight,
+            KeyCode::Home => Action::CursorHome,
+            KeyCode::End => Action::CursorEnd,
             KeyCode::Char(c) => Action::Input(c),
             _ => return Ok(()),
         };
@@ -187,9 +214,11 @@ impl App {
 
     /// Handle keys while the add/edit environment form is open.
     fn handle_form_key_event(&mut self, key: KeyEvent) -> Result<()> {
+        use crate::state::FormField;
         let Some(form) = self.state.form.as_mut() else {
             return Ok(());
         };
+        let on_text = matches!(form.field, FormField::Name | FormField::Key);
         match key.code {
             KeyCode::Esc => self.state.cancel_form(),
             KeyCode::Enter => match self.state.submit_form() {
@@ -204,8 +233,15 @@ impl App {
             },
             KeyCode::Tab | KeyCode::Down => form.next_field(),
             KeyCode::BackTab | KeyCode::Up => form.prev_field(),
+            // On text fields the arrows move the cursor; on choice fields they
+            // change the value.
+            KeyCode::Left if on_text => form.cursor_left(),
+            KeyCode::Right if on_text => form.cursor_right(),
             KeyCode::Left => form.adjust(false),
             KeyCode::Right => form.adjust(true),
+            KeyCode::Home => form.cursor_home(),
+            KeyCode::End => form.cursor_end(),
+            KeyCode::Delete => form.delete(),
             // Space types into text fields and toggles/cycles choice fields;
             // each method no-ops on the field kind it does not apply to.
             KeyCode::Char(' ') => {
@@ -215,6 +251,84 @@ impl App {
             KeyCode::Backspace => form.backspace(),
             KeyCode::Char(c) => form.type_char(c),
             _ => {}
+        }
+        Ok(())
+    }
+
+    /// Handle keys on the playground screen (its own form-like editor).
+    fn handle_playground_key_event(&mut self, key: KeyEvent) -> Result<()> {
+        use crossterm::event::KeyModifiers;
+
+        // Ctrl-y copies the result regardless of the active field.
+        if key.code == KeyCode::Char('y') && key.modifiers.contains(KeyModifiers::CONTROL) {
+            self.copy_result(crate::state::CryptoTarget::Playground)?;
+            return Ok(());
+        }
+
+        let on_text_field = matches!(
+            self.state.playground.field,
+            crate::state::PlaygroundField::Key | crate::state::PlaygroundField::Value
+        );
+
+        // On choice fields (Operation/Algorithm/State/Random-IV) letters and
+        // digits aren't typed, so reuse them for screen switching — the same
+        // keys that work on the other screens. On text fields they type.
+        if !on_text_field {
+            let nav = match key.code {
+                KeyCode::Char('1') => Some(Action::GoMain),
+                KeyCode::Char('2') => Some(Action::GoPlayground),
+                KeyCode::Char('3') => Some(Action::GoAbout),
+                KeyCode::Char('h') => Some(Action::PrevScreen),
+                KeyCode::Char('l') => Some(Action::NextScreen),
+                KeyCode::Char('q') => Some(Action::Quit),
+                _ => None,
+            };
+            if let Some(action) = nav {
+                self.action_tx.send(action)?;
+                return Ok(());
+            }
+        }
+
+        let p = &mut self.state.playground;
+        match key.code {
+            KeyCode::Esc => self.state.mode = Mode::Main,
+            KeyCode::Enter => self.state.begin_playground(self.action_tx.clone()),
+            KeyCode::Tab | KeyCode::Down => p.next_field(),
+            KeyCode::BackTab | KeyCode::Up => p.prev_field(),
+            // On text fields the arrows move the cursor; on choice fields they
+            // change the value.
+            KeyCode::Left if on_text_field => p.cursor_left(),
+            KeyCode::Right if on_text_field => p.cursor_right(),
+            KeyCode::Left => p.adjust(false),
+            KeyCode::Right => p.adjust(true),
+            KeyCode::Home => p.cursor_home(),
+            KeyCode::End => p.cursor_end(),
+            KeyCode::Delete => p.delete(),
+            // Space types into text fields and toggles/cycles choice fields;
+            // each method no-ops on the field kind it does not apply to.
+            KeyCode::Char(' ') => {
+                p.type_char(' ');
+                p.adjust(true);
+            }
+            KeyCode::Backspace => p.backspace(),
+            KeyCode::Char(c) => p.type_char(c),
+            _ => {}
+        }
+        Ok(())
+    }
+
+    /// Copy the successful result for `target` to the clipboard and report it.
+    fn copy_result(&mut self, target: crate::state::CryptoTarget) -> Result<()> {
+        match self.state.result_output(target) {
+            Some(text) => match crate::clipboard::copy(&text) {
+                Ok(()) => self
+                    .action_tx
+                    .send(Action::Message("Result copied to clipboard.".to_string()))?,
+                Err(e) => self.action_tx.send(Action::Error(e))?,
+            },
+            None => self
+                .action_tx
+                .send(Action::Message("No result to copy.".to_string()))?,
         }
         Ok(())
     }
@@ -250,7 +364,22 @@ impl App {
                 Action::Resize(w, h) => self.handle_resize(tui, w, h)?,
                 Action::Render => self.render(tui)?,
                 Action::GoMain => self.state.mode = Mode::Main,
+                Action::GoPlayground => self.state.mode = Mode::Playground,
                 Action::GoAbout => self.state.mode = Mode::About,
+                Action::PrevScreen => self.state.mode = self.state.mode.shift(false),
+                Action::NextScreen => self.state.mode = self.state.mode.shift(true),
+                Action::Encrypt => self
+                    .state
+                    .begin_main_crypto(self.action_tx.clone(), Operation::Encrypt),
+                Action::Decrypt => self
+                    .state
+                    .begin_main_crypto(self.action_tx.clone(), Operation::Decrypt),
+                Action::CopyResult => self.copy_result(CryptoTarget::Main)?,
+                Action::ToggleReveal => self.state.reveal_key = !self.state.reveal_key,
+                Action::SendToPlayground => self.state.send_to_playground(),
+                Action::CryptoDone(target, op, ref outcome) => {
+                    self.state.set_result(target, op, outcome.clone());
+                }
                 _ => {}
             }
             let active = self.state.mode.component_index();
@@ -269,27 +398,29 @@ impl App {
 
     fn render(&mut self, tui: &mut Tui) -> Result<()> {
         tui.draw(|frame| {
-            let vertical_layout = Layout::vertical(vec![
-                Constraint::Max(1),
+            // Tab bar, a blank spacer row, the active screen, then the footer.
+            let [header_area, _spacer, content_area, footer_area] = Layout::vertical([
+                Constraint::Length(1),
+                Constraint::Length(1),
                 Constraint::Fill(1),
-                Constraint::Max(1),
+                Constraint::Length(1),
             ])
-            .split(frame.area());
+            .areas(frame.area());
 
-            if let Err(err) = self.header.draw(frame, vertical_layout[0], &self.state) {
+            if let Err(err) = self.header.draw(frame, header_area, &self.state) {
                 let _ = self
                     .action_tx
                     .send(Action::Error(format!("Failed to draw: {:?}", err)));
             }
 
             let active = self.state.mode.component_index();
-            if let Err(err) = self.components[active].draw(frame, vertical_layout[1], &self.state) {
+            if let Err(err) = self.components[active].draw(frame, content_area, &self.state) {
                 let _ = self
                     .action_tx
                     .send(Action::Error(format!("Failed to draw: {:?}", err)));
             }
 
-            if let Err(err) = self.footer.draw(frame, vertical_layout[2], &self.state) {
+            if let Err(err) = self.footer.draw(frame, footer_area, &self.state) {
                 let _ = self
                     .action_tx
                     .send(Action::Error(format!("Failed to draw: {:?}", err)));

@@ -23,33 +23,41 @@ impl Pane for ResultPane {
     }
 
     fn draw(&mut self, frame: &mut Frame<'_>, area: Rect, state: &State) -> Result<()> {
-        let (title, body, style) = match &state.result {
-            None => (
+        let (title, body, style) = if state.busy {
+            (
                 " Result ".to_string(),
-                Text::from(vec![
-                    Line::from(Span::styled(
-                        "No result yet.",
-                        Style::default().add_modifier(Modifier::ITALIC),
-                    )),
-                    Line::from(Span::styled(
-                        "Press 'e' to encrypt or 'd' to decrypt.",
-                        theme::hint_italic(),
-                    )),
-                ]),
-                Style::default(),
-            ),
-            Some(res) => match &res.outcome {
-                Ok(output) => (
-                    format!(" {} ", res.op.label()),
-                    Text::from(output.clone()),
-                    Style::default().fg(theme::SUCCESS),
+                Text::from(Span::styled("Working…", theme::hint_italic())),
+                Style::default().fg(theme::ACCENT),
+            )
+        } else {
+            match &state.result {
+                None => (
+                    " Result ".to_string(),
+                    Text::from(vec![
+                        Line::from(Span::styled(
+                            "No result yet.",
+                            Style::default().add_modifier(Modifier::ITALIC),
+                        )),
+                        Line::from(Span::styled(
+                            "e encrypt · d decrypt · Ctrl-y copy",
+                            theme::hint_italic(),
+                        )),
+                    ]),
+                    Style::default(),
                 ),
-                Err(err) => (
-                    " Error ".to_string(),
-                    Text::from(err.clone()),
-                    Style::default().fg(theme::ERROR),
-                ),
-            },
+                Some(res) => match &res.outcome {
+                    Ok(output) => (
+                        format!(" {} ", res.op.label()),
+                        Text::from(output.clone()),
+                        Style::default().fg(theme::SUCCESS),
+                    ),
+                    Err(err) => (
+                        " Error ".to_string(),
+                        Text::from(err.clone()),
+                        Style::default().fg(theme::ERROR),
+                    ),
+                },
+            }
         };
 
         let block = Block::default()

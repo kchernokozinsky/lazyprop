@@ -11,17 +11,21 @@ impl HeaderPane {
         Self {}
     }
 
-    fn tab(label: &str, active: bool) -> Span<'static> {
-        if active {
-            Span::styled(
-                format!(" {label} "),
-                Style::default()
-                    .fg(theme::ACCENT)
-                    .add_modifier(Modifier::BOLD | Modifier::REVERSED),
-            )
+    /// A tab as two spans: a dimmed shortcut number and the screen name.
+    /// The active screen's name is accented, bold and underlined; the rest dim.
+    fn tab(num: &str, label: &str, active: bool) -> [Span<'static>; 3] {
+        let name_style = if active {
+            Style::default()
+                .fg(theme::ACCENT)
+                .add_modifier(Modifier::BOLD | Modifier::UNDERLINED)
         } else {
-            Span::styled(format!(" {label} "), theme::hint())
-        }
+            theme::hint()
+        };
+        [
+            Span::styled(num.to_string(), theme::hint()),
+            Span::raw(" "),
+            Span::styled(label.to_string(), name_style),
+        ]
     }
 }
 
@@ -34,12 +38,14 @@ impl Pane for HeaderPane {
         let [left, right] =
             Layout::horizontal([Constraint::Fill(1), Constraint::Length(28)]).areas(area);
 
-        let tabs = Line::from(vec![
-            Self::tab("1 Main", state.mode == Mode::Main),
-            Span::styled("│", theme::hint()),
-            Self::tab("2 About", state.mode == Mode::About),
-        ]);
-        frame.render_widget(tabs, left);
+        let gap = || Span::raw("   ");
+        let mut spans = vec![Span::raw(" ")];
+        spans.extend(Self::tab("1", "Main", state.mode == Mode::Main));
+        spans.push(gap());
+        spans.extend(Self::tab("2", "Playground", state.mode == Mode::Playground));
+        spans.push(gap());
+        spans.extend(Self::tab("3", "About", state.mode == Mode::About));
+        frame.render_widget(Line::from(spans), left);
 
         let title = Line::from(vec![
             Span::styled("lazyprop ", Style::default().fg(theme::ACCENT)),
