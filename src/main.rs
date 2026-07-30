@@ -9,7 +9,7 @@ async fn main() -> Result<()> {
     lazyprop::logging::init()?;
 
     let args = Cli::parse();
-    let mut app = App::new(args.tick_rate, args.frame_rate)?;
+    let mut app = App::new(args.tick_rate, args.frame_rate, args.envs, args.jar)?;
     app.run().await?;
     Ok(())
 }

@@ -1,48 +1,175 @@
 use color_eyre::Result;
-use ratatui::prelude::*;
+use ratatui::{
+    prelude::*,
+    widgets::{block::*, *},
+};
 use tokio::sync::mpsc::UnboundedSender;
 
 use super::Component;
 use crate::{
     action::Action,
-    config::Config,
-    panes::{details::DetailsPane, envs::EnvsPane, search::SearchPane, status::StatusPane, Pane},
-    state::State,
+    panes::{
+        details::DetailsPane, envs::EnvsPane, input::InputPane, result::ResultPane,
+        status::StatusPane, Pane,
+    },
+    state::{FormField, InputMode, Operation, State},
+    theme,
 };
+
+/// Which focusable pane currently receives navigation / typing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Focus {
+    Envs,
+    Input,
+}
+
+impl Focus {
+    fn next(self) -> Self {
+        match self {
+            Focus::Envs => Focus::Input,
+            Focus::Input => Focus::Envs,
+        }
+    }
+}
 
 pub struct Home {
     command_tx: Option<UnboundedSender<Action>>,
-    config: Config,
-    panes: Vec<Box<dyn Pane>>,
-    focused_pane_index: usize,
-    fullscreen_pane_index: Option<usize>,
+    focus: Focus,
+    envs: EnvsPane,
+    input: InputPane,
+    details: DetailsPane,
+    result: ResultPane,
+    status: StatusPane,
 }
 
 impl Home {
     pub fn new() -> Result<Self> {
-        let focused_border_style = Style::default().fg(Color::Green);
+        let focused_border_style = Style::default().fg(theme::ACCENT);
         Ok(Self {
             command_tx: None,
-            config: Config::default(),
-            panes: vec![
-                Box::new(EnvsPane::new(true, focused_border_style)),
-                Box::new(StatusPane::new()),
-                Box::new(DetailsPane::new()),
-                Box::new(SearchPane::new(false, focused_border_style)),
-            ],
-
-            focused_pane_index: 0,
-            fullscreen_pane_index: None,
+            focus: Focus::Envs,
+            envs: EnvsPane::new(true, focused_border_style),
+            input: InputPane::new(false, focused_border_style),
+            details: DetailsPane::new(),
+            result: ResultPane::new(),
+            status: StatusPane::new(),
         })
     }
 
-    pub fn next_focused_pane(&mut self) {
-        self.focused_pane_index = (self.focused_pane_index + 1) % (self.panes.len());
-
-        while !self.panes[self.focused_pane_index].focusable() {
-            self.focused_pane_index = (self.focused_pane_index + 1) % (self.panes.len());
-        }
+    /// Move focus to `target`, updating pane state and the global input mode.
+    fn set_focus(&mut self, target: Focus, state: &mut State) -> Result<()> {
+        self.envs.update(Action::UnFocus, state)?;
+        self.input.update(Action::UnFocus, state)?;
+        match target {
+            Focus::Envs => self.envs.update(Action::Focus, state)?,
+            Focus::Input => self.input.update(Action::Focus, state)?,
+        };
+        self.focus = target;
+        Ok(())
     }
+
+    fn draw_env_form(&self, frame: &mut Frame, area: Rect, state: &State) {
+        let Some(form) = &state.form else { return };
+
+        let mut lines: Vec<Line> = vec![
+            Line::raw(""),
+            form_text_line("Name", &form.name, form.field == FormField::Name),
+            form_choice_line(
+                "Algorithm",
+                &format!("{:?}", form.algorithm),
+                form.field == FormField::Algorithm,
+            ),
+            form_choice_line(
+                "Mode",
+                &format!("{:?}", form.cipher),
+                form.field == FormField::Mode,
+            ),
+            form_choice_line(
+                "Random IV",
+                if form.use_random_ivs { "yes" } else { "no" },
+                form.field == FormField::RandomIv,
+            ),
+            form_text_line("Key", &form.key, form.field == FormField::Key),
+            Line::raw(""),
+        ];
+        if let Some(err) = &form.error {
+            lines.push(Line::from(Span::styled(
+                format!("  {err}"),
+                Style::default().fg(theme::ERROR),
+            )));
+        }
+        lines.push(Line::from(Span::styled(
+            "  Tab/↑↓ move · ←/→ change · Enter save · Esc cancel",
+            theme::hint(),
+        )));
+
+        let popup = centered_rect(60, 60, area);
+        frame.render_widget(Clear, popup);
+        let block = Block::default()
+            .title(form.title())
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(theme::ACCENT));
+        frame.render_widget(Paragraph::new(lines).block(block), popup);
+    }
+
+    fn draw_delete_confirm(&self, frame: &mut Frame, area: Rect, state: &State) {
+        let Some(name) = state.pending_delete_name() else {
+            return;
+        };
+        let popup = centered_rect(50, 20, area);
+        frame.render_widget(Clear, popup);
+        let lines = vec![
+            Line::raw(""),
+            Line::from(vec![
+                Span::raw("  Delete environment "),
+                Span::styled(
+                    format!("'{name}'"),
+                    Style::default()
+                        .fg(theme::ERROR)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::raw("?"),
+            ]),
+            Line::raw(""),
+            Line::from(Span::styled("  y confirm · n / Esc cancel", theme::hint())),
+        ];
+        let block = Block::default()
+            .title(" Confirm delete ")
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(theme::ERROR));
+        frame.render_widget(Paragraph::new(lines).block(block), popup);
+    }
+}
+
+fn form_text_line(label: &str, value: &str, active: bool) -> Line<'static> {
+    let mut spans = vec![
+        Span::styled(
+            if active { "▶ " } else { "  " },
+            Style::default().fg(theme::ACCENT),
+        ),
+        Span::styled(format!("{label:>10}: "), theme::label()),
+        Span::raw(value.to_string()),
+    ];
+    if active {
+        spans.push(Span::styled("▌", Style::default().fg(theme::ACCENT)));
+    }
+    Line::from(spans)
+}
+
+fn form_choice_line(label: &str, value: &str, active: bool) -> Line<'static> {
+    let value = if active {
+        format!("‹ {value} ›")
+    } else {
+        format!("  {value}")
+    };
+    Line::from(vec![
+        Span::styled(
+            if active { "▶ " } else { "  " },
+            Style::default().fg(theme::ACCENT),
+        ),
+        Span::styled(format!("{label:>10}: "), theme::label()),
+        Span::raw(value),
+    ])
 }
 
 impl Component for Home {
@@ -51,78 +178,121 @@ impl Component for Home {
         Ok(())
     }
 
-    fn register_config_handler(&mut self, config: Config) -> Result<()> {
-        self.config = config;
-        Ok(())
-    }
-
     fn update(&mut self, action: Action, state: &mut State) -> Result<Option<Action>> {
         match action {
-            Action::Tick => {}
-            Action::Render => {}
-            Action::Down => return self.panes[self.focused_pane_index].update(Action::Down, state),
-            Action::Up => return self.panes[self.focused_pane_index].update(Action::Up, state),
+            Action::Down | Action::Up => return self.envs.update(action, state),
             Action::Tab => {
-                self.panes[self.focused_pane_index].update(Action::UnFocus, state)?;
-                self.next_focused_pane();
-                return self.panes[self.focused_pane_index].update(Action::Focus, state);
+                if state.searching {
+                    state.searching = false;
+                    state.input_mode = InputMode::Normal;
+                }
+                let next = self.focus.next();
+                self.set_focus(next, state)?;
             }
-            Action::Error(message) => return self.panes[1].update(Action::Error(message), state),
-            Action::Message(message) => {
-                return self.panes[1].update(Action::Message(message), state)
+            Action::Search => {
+                self.set_focus(Focus::Envs, state)?;
+                state.searching = true;
+                state.input_mode = InputMode::Insert;
+            }
+            Action::Escape => {
+                if state.searching {
+                    state.searching = false;
+                    state.input_mode = InputMode::Normal;
+                } else {
+                    self.set_focus(Focus::Envs, state)?;
+                }
+            }
+            Action::AddEnv => state.open_add_form(),
+            Action::EditEnv => state.open_edit_form(),
+            Action::DeleteEnv => state.request_delete(),
+            Action::Encrypt => {
+                state.run_crypto(Operation::Encrypt);
+                return Ok(Some(status_action(state, Operation::Encrypt)));
+            }
+            Action::Decrypt => {
+                state.run_crypto(Operation::Decrypt);
+                return Ok(Some(status_action(state, Operation::Decrypt)));
             }
             Action::Input(c) => {
-                return self.panes[self.focused_pane_index].update(Action::Input(c), state)
+                if state.searching {
+                    state.push_search(c);
+                } else if self.focus == Focus::Input {
+                    return self.input.update(Action::Input(c), state);
+                }
             }
             Action::Backspace => {
-                return self.panes[self.focused_pane_index].update(Action::Backspace, state)
+                if state.searching {
+                    state.pop_search();
+                } else if self.focus == Focus::Input {
+                    return self.input.update(Action::Backspace, state);
+                }
             }
+            Action::Error(_) | Action::Message(_) => return self.status.update(action, state),
             _ => {}
         }
         Ok(None)
     }
 
     fn draw(&mut self, frame: &mut Frame, area: Rect, state: &State) -> Result<()> {
-        if let Some(fullscreen_pane_index) = self.fullscreen_pane_index {
-            self.panes[fullscreen_pane_index].draw(frame, area, state)?;
-        } else {
-            let outer_layout = Layout::default()
-                .direction(Direction::Horizontal)
-                .constraints(vec![Constraint::Fill(1), Constraint::Fill(1)])
-                .split(area);
+        let [main_area, status_area] =
+            Layout::vertical([Constraint::Fill(1), self.status.height_constraint()]).areas(area);
 
-            let bottom_layout = Layout::default()
-                .direction(Direction::Vertical)
-                .constraints(vec![
-                    self.panes[3].height_constraint(),
-                    self.panes[0].height_constraint(),
-                    self.panes[1].height_constraint(),
-                ])
-                .split(area);
+        let [left, right] =
+            Layout::horizontal([Constraint::Fill(1), Constraint::Fill(1)]).areas(main_area);
 
-            let left_panes = Layout::default()
-                .direction(Direction::Vertical)
-                .constraints(vec![
-                    self.panes[3].height_constraint(),
-                    self.panes[0].height_constraint(),
-                    self.panes[1].height_constraint(),
-                ])
-                .split(outer_layout[0]);
+        let [details_area, input_area, result_area] = Layout::vertical([
+            self.details.height_constraint(),
+            self.input.height_constraint(),
+            Constraint::Fill(1),
+        ])
+        .areas(right);
 
-            let right_panes = Layout::default()
-                .direction(Direction::Vertical)
-                .constraints(vec![
-                    self.panes[3].height_constraint(),
-                    self.panes[0].height_constraint(),
-                    self.panes[1].height_constraint(),
-                ])
-                .split(outer_layout[1]);
+        self.envs.draw(frame, left, state)?;
+        self.details.draw(frame, details_area, state)?;
+        self.input.draw(frame, input_area, state)?;
+        self.result.draw(frame, result_area, state)?;
+        self.status.draw(frame, status_area, state)?;
 
-            self.panes[0].draw(frame, left_panes[1], state)?;
-            self.panes[2].draw(frame, right_panes[1], state)?;
-            self.panes[1].draw(frame, bottom_layout[2], state)?;
-            self.panes[3].draw(frame, left_panes[0], state)?;
+        if state.form.is_some() {
+            self.draw_env_form(frame, area, state);
+        }
+        if state.pending_delete.is_some() {
+            self.draw_delete_confirm(frame, area, state);
         }
         Ok(())
     }
+}
+
+/// Build a status-line action reflecting the outcome of the last crypto run.
+fn status_action(state: &State, op: Operation) -> Action {
+    match &state.result {
+        Some(res) => match &res.outcome {
+            Ok(_) => Action::Message(format!("{} value with '{}'.", op.label(), env_name(state))),
+            Err(e) => Action::Error(e.clone()),
+        },
+        None => Action::Message(String::new()),
+    }
+}
+
+fn env_name(state: &State) -> String {
+    state
+        .selected_env()
+        .map(|e| e.name.clone())
+        .unwrap_or_else(|| "?".to_string())
+}
+
+/// Compute a centered rectangle taking `percent_x`/`percent_y` of `area`.
+fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
+    let vertical = Layout::vertical([
+        Constraint::Percentage((100 - percent_y) / 2),
+        Constraint::Percentage(percent_y),
+        Constraint::Percentage((100 - percent_y) / 2),
+    ])
+    .split(area);
+    Layout::horizontal([
+        Constraint::Percentage((100 - percent_x) / 2),
+        Constraint::Percentage(percent_x),
+        Constraint::Percentage((100 - percent_x) / 2),
+    ])
+    .split(vertical[1])[1]
 }

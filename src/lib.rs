@@ -9,4 +9,5 @@ pub mod errors;
 pub mod logging;
 pub mod panes;
 pub mod state;
+pub mod theme;
 pub mod tui;

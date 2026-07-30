@@ -6,7 +6,7 @@ use ratatui::{
     widgets::{block::*, *},
 };
 
-use crate::{action::Action, panes::Pane};
+use crate::{action::Action, panes::Pane, theme};
 
 pub struct StatusPane {
     message: String,
@@ -20,14 +20,6 @@ impl StatusPane {
             is_error: false,
         }
     }
-
-    fn border_style(&self) -> Style {
-        Style::default()
-    }
-
-    fn border_type(&self) -> BorderType {
-        BorderType::Plain
-    }
 }
 
 impl Default for StatusPane {
@@ -38,7 +30,7 @@ impl Default for StatusPane {
 
 impl Pane for StatusPane {
     fn height_constraint(&self) -> Constraint {
-        Constraint::Fill(1)
+        Constraint::Length(3)
     }
 
     fn update(&mut self, action: Action, _state: &mut State) -> Result<Option<Action>> {
@@ -58,39 +50,32 @@ impl Pane for StatusPane {
     }
 
     fn draw(&mut self, frame: &mut Frame<'_>, area: Rect, _state: &State) -> Result<()> {
-        let status_block = Block::default()
-            .title(" Status ")
-            .borders(Borders::ALL)
-            .border_style(self.border_style())
-            .border_type(self.border_type());
+        let block = Block::default().title(" Status ").borders(Borders::ALL);
 
-        // Render the block
-        frame.render_widget(status_block, area);
+        let (text, style): (Span, Style) = if self.message.is_empty() {
+            (
+                Span::raw("Ready. Press 2 for help & about."),
+                theme::hint_italic(),
+            )
+        } else if self.is_error {
+            (
+                Span::raw(self.message.clone()),
+                Style::default().fg(theme::ERROR),
+            )
+        } else {
+            (
+                Span::raw(self.message.clone()),
+                Style::default().fg(theme::SUCCESS),
+            )
+        };
 
-        // Define the inner area within the block (with some padding)
-        let inner_area = ratatui::layout::Layout::default()
-            .direction(Direction::Vertical)
-            .margin(1) // Padding inside the block
-            .constraints([
-                Constraint::Fill(1), // For configuration paths // For status messages
-            ])
-            .split(area);
-
-        // Prepare the status message text
-        let status_message = self.message.clone();
-
-        let status_text = vec![Span::raw(status_message)];
-        // Add more status lines if needed;
-
-        // Create a Paragraph for status messages
-        let status_paragraph = Paragraph::new(Line::from(status_text))
-            .style(Style::default().fg(Color::Black))
+        let paragraph = Paragraph::new(Line::from(text))
+            .style(style)
+            .block(block)
             .alignment(Alignment::Left)
-            .wrap(ratatui::widgets::Wrap { trim: true });
+            .wrap(Wrap { trim: true });
 
-        // Render the status messages Paragraph
-        frame.render_widget(status_paragraph, inner_area[0]);
-
+        frame.render_widget(paragraph, area);
         Ok(())
     }
 

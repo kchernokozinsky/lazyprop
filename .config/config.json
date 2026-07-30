@@ -3,37 +3,39 @@
   "envs_path": "envs.yaml",
   "keybindings": {
     "Main": {
-      "<q>": "Quit", 
-      "<Ctrl-d>": "Quit", 
-      "<Ctrl-c>": "Quit", 
+      "<q>": "Quit",
+      "<Ctrl-c>": "Quit",
+      "<Ctrl-d>": "Quit",
       "<Ctrl-z>": "Suspend",
-      "<Down>": "Down",
+      "<w>": "Up",
       "<Up>": "Up",
+      "<s>": "Down",
+      "<Down>": "Down",
       "<Tab>": "Tab",
-      "<h>": "History",
-      "<f>": "FileManager"
+      "<e>": "Encrypt",
+      "<d>": "Decrypt",
+      "</>": "Search",
+      "<a>": "AddEnv",
+      "<Enter>": "EditEnv",
+      "<x>": "DeleteEnv",
+      "<Esc>": "Escape",
+      "<1>": "GoMain",
+      "<2>": "GoAbout",
+      "<?>": "GoAbout"
     },
-    "History": {
-      "<q>": "Quit", 
-      "<Ctrl-d>": "Quit", 
-      "<Ctrl-c>": "Quit", 
+    "About": {
+      "<q>": "Quit",
+      "<Ctrl-c>": "Quit",
+      "<Ctrl-d>": "Quit",
       "<Ctrl-z>": "Suspend",
-      "<Down>": "Down",
+      "<w>": "Up",
       "<Up>": "Up",
-      "<Tab>": "Tab",
-      "<m>": "Main",
-      "<f>": "FileManager"
-    },
-    "FileManager": {
-      "<q>": "Quit", 
-      "<Ctrl-d>": "Quit", 
-      "<Ctrl-c>": "Quit", 
-      "<Ctrl-z>": "Suspend",
+      "<s>": "Down",
       "<Down>": "Down",
-      "<Up>": "Up",
-      "<Tab>": "Tab",
-      "<m>": "Main",
-      "<h>": "History"
+      "<1>": "GoMain",
+      "<2>": "GoAbout",
+      "<Esc>": "GoMain",
+      "<?>": "GoMain"
     }
   }
 }

@@ -2,8 +2,10 @@
 name = "lazyprop"
 version = "0.1.0"
 edition = "2021"
-description = "lazyprop"
+description = "A terminal UI for encrypting and decrypting MuleSoft secure properties across environments"
 authors = ["kchernokozinsky <kyrylo.chornokozynskyi@ukma.edu.ua>"]
+repository = "https://github.com/kchernokozinsky/lazyprop"
+license = "MIT"
 build = "build.rs"
 
 [lib]

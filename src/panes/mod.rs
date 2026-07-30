@@ -9,8 +9,10 @@ use crate::{action::Action, state::State, tui::Event};
 
 pub mod details;
 pub mod envs;
+pub mod footer;
 pub mod header;
-pub mod search;
+pub mod input;
+pub mod result;
 pub mod status;
 
 pub trait Pane {

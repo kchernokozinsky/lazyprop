@@ -12,6 +12,14 @@ pub struct Cli {
     /// Frame rate, i.e. number of frames per second
     #[arg(short, long, value_name = "FLOAT", default_value_t = 60.0)]
     pub frame_rate: f64,
+
+    /// Path to the environments file (overrides the configured envs_path)
+    #[arg(short, long, value_name = "FILE")]
+    pub envs: Option<String>,
+
+    /// Path to the Secure Properties Tool jar (overrides the configured jar_path)
+    #[arg(short, long, value_name = "FILE")]
+    pub jar: Option<String>,
 }
 
 pub const VERSION_MESSAGE: &str = concat!(

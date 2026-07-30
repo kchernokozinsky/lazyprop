@@ -12,18 +12,36 @@ pub enum Action {
     ClearScreen,
     Error(String),
     Message(String),
-    Help,
+    /// Switch to the main screen.
+    GoMain,
+    /// Switch to the about / help screen.
+    GoAbout,
+    /// Move the selection down / to the next item.
     Down,
+    /// Move the selection up / to the previous item.
     Up,
-    Update,
-    TimedStatusLine(String, u64),
+    /// Cycle focus to the next focusable pane.
     Tab,
+    /// Give focus to a pane.
     Focus,
+    /// Remove focus from a pane.
     UnFocus,
-    Submit,
+    /// Leave insert mode / dismiss the help overlay.
+    Escape,
+    /// A character was typed while a text input is focused.
     Input(char),
+    /// Backspace was pressed while a text input is focused.
     Backspace,
-    Main, 
-    History, 
-    FileManager,
+    /// Encrypt the current input value with the selected environment.
+    Encrypt,
+    /// Decrypt the current input value with the selected environment.
+    Decrypt,
+    /// Start filtering the environments list by name.
+    Search,
+    /// Open the form to add a new environment.
+    AddEnv,
+    /// Open the form to edit the selected environment.
+    EditEnv,
+    /// Ask to delete the selected environment.
+    DeleteEnv,
 }
