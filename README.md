@@ -44,8 +44,8 @@ Override the environment file or jar location explicitly:
 lazyprop --envs ./config/envs.yaml --jar ./tools/secure-properties-tool.jar
 ```
 
-There are two screens, shown as tabs in the header: **Main** and **About**.
-Switch with `1` / `2` (or `?` to jump to About, `Esc` to come back).
+There are three screens, shown as tabs in the header: **Main**, **Playground**
+and **About**. Switch with `1` / `2` / `3` (or `?` to jump to About).
 
 Typical flow on the **Main** screen:
 
@@ -56,7 +56,12 @@ Typical flow on the **Main** screen:
 4. Press `e` to encrypt or `d` to decrypt — the result appears in the **Result**
    pane.
 
-The **About** screen (`2` or `?`) shows a brief description, the full list of
+The **Playground** screen (`2`) is a one-off encrypt/decrypt form with no saved
+environment — pick the Operation, Algorithm, State and Random-IV, type a Key and
+Value, and press `Enter` to generate. Move between fields with `Tab` / `↑` `↓`,
+change a choice with `←` `→`, and press `Esc` to return to Main.
+
+The **About** screen (`3` or `?`) shows a brief description, the full list of
 keybindings, and where lazyprop keeps its files; scroll it with `w` / `s`.
 
 ### Searching environments
@@ -92,17 +97,41 @@ environments:
 AES). When `use_random_ivs` is `true`, the `--use-random-iv` flag is passed to
 the tool.
 
+### Algorithm / mode compatibility
+
+The **mode** (`state`) list is filtered by the selected **algorithm**, so you
+can only pick combinations the tool actually accepts. Verified against the
+bundled jar:
+
+| Algorithm | Modes                |
+| --------- | -------------------- |
+| AES       | CBC, CFB, ECB, OFB   |
+| Blowfish  | CBC, CFB, ECB, OFB   |
+| DES       | CBC, CFB, ECB, OFB   |
+| DESede    | CBC, CFB, ECB, OFB   |
+| RC2       | CBC, CFB, ECB, OFB   |
+| RCA (RC4) | *(none — stream cipher, unsupported by the tool)* |
+
+When you change the algorithm, an incompatible mode is reset to the default
+(CBC where supported). Selecting **RCA** shows the mode as `n/a`, and trying to
+encrypt/decrypt with it reports a clear "not supported" error rather than
+failing deep inside the jar.
+
 ## Keybindings
 
 | Key         | Action                                   |
 | ----------- | ---------------------------------------- |
 | `s` / `Down`| Select next environment / scroll down    |
 | `w` / `Up`  | Select previous environment / scroll up  |
-| `1` / `2`   | Switch to the Main / About screen        |
+| `1`/`2`/`3` | Jump to Main / Playground / About        |
+| `h` / `l`   | Previous / next screen                   |
 | `Tab`       | Cycle focus (Environments ↔ Value)       |
 | `/`         | Filter the environments list by name     |
 | `e`         | Encrypt the current value                |
 | `d`         | Decrypt the current value                |
+| `Ctrl-y`    | Copy the result to the clipboard         |
+| `r`         | Reveal / hide the selected key           |
+| `p`         | Send selected environment → Playground   |
 | `a`         | Add a new environment                    |
 | `Enter`     | Edit the selected environment            |
 | `x`         | Delete the selected environment          |
@@ -112,9 +141,14 @@ the tool.
 | `Ctrl-c`    | Quit                                     |
 | `Ctrl-z`    | Suspend                                  |
 
+In text fields (Value, and the form/playground Key/Value), `←` `→` `Home` `End`
+move the cursor, `Backspace`/`Delete` edit at it, and long values scroll
+horizontally to keep the cursor in view. Encrypt/decrypt runs in the background
+(the pane shows `Working…`) so the UI never freezes during the JVM start-up.
+
 Keybindings are configurable — see below. The interface uses ANSI-named colours
 and dimmed secondary text, so it stays legible on both light and dark terminal
-themes.
+themes, and the footer hints shrink to fit narrow terminals.
 
 ## Configuration
 
