@@ -3,6 +3,7 @@
 
 use lazyprop::environment::Environments;
 use lazyprop::state::State;
+use lazyprop::text_field::TextField;
 
 fn temp_envs_file() -> String {
     let path = std::env::temp_dir().join(format!(
@@ -27,8 +28,8 @@ fn add_edit_delete_persist_to_file() {
     state.open_add_form();
     {
         let form = state.form.as_mut().unwrap();
-        form.name = "StagingEnv".to_string();
-        form.key = "stagingkey123456".to_string();
+        form.name = TextField::from_text("StagingEnv");
+        form.key = TextField::from_text("stagingkey123456");
     }
     state.submit_form().expect("add should succeed and save");
     assert!(state.form.is_none(), "form should close on success");
@@ -39,8 +40,8 @@ fn add_edit_delete_persist_to_file() {
 
     // --- Duplicate add is rejected and keeps the form open with an error ---
     state.open_add_form();
-    state.form.as_mut().unwrap().name = "StagingEnv".to_string();
-    state.form.as_mut().unwrap().key = "whatever00000000".to_string();
+    state.form.as_mut().unwrap().name = TextField::from_text("StagingEnv");
+    state.form.as_mut().unwrap().key = TextField::from_text("whatever00000000");
     assert!(
         state.submit_form().is_err(),
         "duplicate name must be rejected"
@@ -49,7 +50,7 @@ fn add_edit_delete_persist_to_file() {
 
     // --- Edit the newly added env (it is now selected) ---
     state.open_edit_form();
-    state.form.as_mut().unwrap().key = "rotatedkey000000".to_string();
+    state.form.as_mut().unwrap().key = TextField::from_text("rotatedkey000000");
     state.submit_form().expect("edit should succeed and save");
     let reloaded = Environments::new(&file).unwrap();
     let edited = reloaded

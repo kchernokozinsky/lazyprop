@@ -4,6 +4,7 @@
 
 use lazyprop::components::about::AboutScreen;
 use lazyprop::components::home::Home;
+use lazyprop::components::playground::PlaygroundScreen;
 use lazyprop::components::Component;
 use lazyprop::state::State;
 use ratatui::{backend::TestBackend, Terminal};
@@ -45,8 +46,13 @@ fn home_renders_expected_panes() {
 fn about_screen_renders_help_and_info() {
     let state = State::new(Some(FIXTURE.to_string()), None).expect("state should load fixture");
     let mut about = AboutScreen::new();
+    // The keybindings section reads from the config, as the app wires it up.
+    about
+        .register_config_handler(lazyprop::config::Config::new().expect("config loads"))
+        .unwrap();
 
-    let mut terminal = Terminal::new(TestBackend::new(100, 30)).unwrap();
+    // Tall enough to fit the logo art plus all sections without scrolling.
+    let mut terminal = Terminal::new(TestBackend::new(100, 60)).unwrap();
     terminal
         .draw(|frame| {
             about
@@ -56,8 +62,37 @@ fn about_screen_renders_help_and_info() {
         .unwrap();
 
     let text = buffer_text(&terminal);
-    for expected in ["About lazyprop", "What it does", "Keybindings", "Version"] {
+    for expected in ["About lazyprop", "Keybindings", "Version", "Author", "Repo"] {
         assert!(text.contains(expected), "about screen missing: {expected}");
+    }
+    // Keybindings show friendly descriptions, not raw action names.
+    assert!(
+        text.contains("Add environment"),
+        "friendly descriptions missing"
+    );
+    assert!(
+        !text.contains("AddEnv"),
+        "raw action name should not appear"
+    );
+}
+
+#[test]
+fn playground_screen_renders_form() {
+    let state = State::new(Some(FIXTURE.to_string()), None).expect("state should load fixture");
+    let mut playground = PlaygroundScreen::new();
+
+    let mut terminal = Terminal::new(TestBackend::new(100, 30)).unwrap();
+    terminal
+        .draw(|frame| {
+            playground
+                .draw(frame, frame.area(), &state)
+                .expect("draw should not error");
+        })
+        .unwrap();
+
+    let text = buffer_text(&terminal);
+    for expected in ["Operation", "Algorithm", "State", "Key", "Value", "Result"] {
+        assert!(text.contains(expected), "playground missing: {expected}");
     }
 }
 
