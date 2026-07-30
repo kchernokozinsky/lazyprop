@@ -9,13 +9,16 @@ use crate::{
     action::Action,
     app::Mode,
     cli::VERSION_MESSAGE,
-    config::{get_config_dir, get_data_dir, key_event_to_string, Config},
+    config::{key_event_to_string, Config},
     state::State,
     theme,
 };
 
-/// The "About / Help" screen: what lazyprop is, the keybindings, and where its
-/// files live. Scrollable with the same navigation keys as the main screen.
+/// ASCII art logo shown at the top of the About screen.
+const LOGO: &str = include_str!("../../assets/logo.txt");
+
+/// The "About / Help" screen: the logo, keybindings and app info. Scrollable
+/// with the same navigation keys as the main screen.
 #[derive(Default)]
 pub struct AboutScreen {
     config: Config,
@@ -36,9 +39,10 @@ impl AboutScreen {
         Line::from(Span::styled(title.to_string(), theme::label()))
     }
 
-    /// Keybinding lines for the main screen, read from the active config.
+    /// Keybinding rows for the main screen, read from the active config and
+    /// shown with friendly descriptions (never raw action names).
     fn keybinding_lines(&self) -> Vec<Line<'static>> {
-        let mut bindings: Vec<(String, String)> = self
+        let mut bindings: Vec<(String, &'static str)> = self
             .config
             .keybindings
             .get(&Mode::Main)
@@ -50,66 +54,94 @@ impl AboutScreen {
                             .map(key_event_to_string)
                             .collect::<Vec<_>>()
                             .join(" ");
-                        (key, action.to_string())
+                        (key, action.description())
                     })
+                    .filter(|(_, desc)| !desc.is_empty())
                     .collect()
             })
             .unwrap_or_default();
-        bindings.sort_by(|a, b| a.1.cmp(&b.1));
+        bindings.sort_by(|a, b| a.1.cmp(b.1));
 
         bindings
             .into_iter()
-            .map(|(key, action)| {
+            .map(|(key, desc)| {
                 Line::from(vec![
                     Span::raw("  "),
-                    Span::styled(format!("{key:<10}"), theme::key()),
-                    Span::raw(" "),
-                    Span::raw(action),
+                    Span::styled(format!("{key:<12}"), theme::key()),
+                    Span::raw("  "),
+                    Span::raw(desc),
                 ])
             })
             .collect()
     }
 
-    fn content(&self) -> Vec<Line<'static>> {
-        let mut lines = vec![
-            Line::from(Span::styled(
-                "lazyprop",
-                Style::default()
-                    .fg(theme::ACCENT)
-                    .add_modifier(Modifier::BOLD),
-            )),
-            Line::from(Span::styled(env!("CARGO_PKG_DESCRIPTION"), theme::hint())),
-            Line::raw(""),
-            Self::section("What it does"),
-            Line::raw("  Pick an environment, type a value, and encrypt or decrypt it"),
-            Line::raw("  with MuleSoft's Secure Properties Tool — no Java command line"),
-            Line::raw("  to remember. Environments (algorithm, mode and key) are read"),
-            Line::raw("  from a YAML file you can edit from inside the app."),
-            Line::raw(""),
-            Self::section("Keybindings"),
-        ];
+    fn content(&self, width: usize) -> Vec<Line<'static>> {
+        let mut lines: Vec<Line> = LOGO
+            .lines()
+            .map(|l| {
+                Line::from(Span::styled(
+                    l.to_string(),
+                    Style::default().fg(theme::ACCENT),
+                ))
+            })
+            .collect();
+
+        lines.push(Line::raw(""));
+        lines.extend(wrap_styled(
+            env!("CARGO_PKG_DESCRIPTION"),
+            width,
+            2,
+            theme::hint(),
+        ));
+
+        lines.push(Line::raw(""));
+        lines.push(Self::section("Keybindings"));
         lines.extend(self.keybinding_lines());
+
         lines.push(Line::raw(""));
         lines.push(Self::section("About"));
-        for (k, v) in [
+        for (label, value) in [
             ("Version", VERSION_MESSAGE.to_string()),
             ("Author", env!("CARGO_PKG_AUTHORS").to_string()),
             ("Repo", env!("CARGO_PKG_REPOSITORY").to_string()),
-            ("Config", get_config_dir().display().to_string()),
-            ("Data", get_data_dir().display().to_string()),
         ] {
             lines.push(Line::from(vec![
-                Span::styled(format!("  {k:>8}: "), theme::label()),
-                Span::raw(v),
+                Span::styled(format!("  {label:<8}"), theme::label()),
+                Span::raw("  "),
+                Span::raw(value),
             ]));
         }
+
         lines.push(Line::raw(""));
         lines.push(Line::from(Span::styled(
-            "  Press 1 or Esc to return to the main screen.",
+            "Switch screens: 1 Main · 2 Playground · 3 About · h/l · Esc",
             theme::hint(),
         )));
         lines
     }
+}
+
+/// Word-wrap `text` to `width` cells with a left `indent`, returning styled lines.
+fn wrap_styled(text: &str, width: usize, indent: usize, style: Style) -> Vec<Line<'static>> {
+    let pad = " ".repeat(indent);
+    let avail = width.saturating_sub(indent).max(1);
+    let mut out = Vec::new();
+    let mut cur = String::new();
+    for word in text.split_whitespace() {
+        if cur.is_empty() {
+            cur = word.to_string();
+        } else if cur.chars().count() + 1 + word.chars().count() <= avail {
+            cur.push(' ');
+            cur.push_str(word);
+        } else {
+            out.push(Line::from(Span::styled(format!("{pad}{cur}"), style)));
+            cur = word.to_string();
+        }
+    }
+    if !cur.is_empty() {
+        out.push(Line::from(Span::styled(format!("{pad}{cur}"), style)));
+    }
+    out
 }
 
 impl Component for AboutScreen {
@@ -130,18 +162,19 @@ impl Component for AboutScreen {
     }
 
     fn draw(&mut self, frame: &mut Frame, area: Rect, _state: &State) -> Result<()> {
-        let lines = self.content();
-        self.content_len = lines.len() as u16;
-
         let block = Block::default()
             .title(" About lazyprop ")
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(theme::ACCENT));
+            .border_style(Style::default().fg(theme::ACCENT))
+            // A bit of breathing room between the frame and the text.
+            .padding(Padding::new(2, 2, 1, 0));
 
-        let paragraph = Paragraph::new(lines)
-            .block(block)
-            .scroll((self.scroll, 0))
-            .wrap(Wrap { trim: false });
+        // Width available for text (frame borders + horizontal padding).
+        let width = (area.width as usize).saturating_sub(2 + 4);
+        let lines = self.content(width);
+        self.content_len = lines.len() as u16;
+
+        let paragraph = Paragraph::new(lines).block(block).scroll((self.scroll, 0));
         frame.render_widget(paragraph, area);
         Ok(())
     }
