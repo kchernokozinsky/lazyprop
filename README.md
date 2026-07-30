@@ -8,40 +8,44 @@ key are read from a YAML file), type or paste a value, and encrypt or decrypt it
 on the spot — a friendly front end over MuleSoft's `secure-properties-tool.jar`
 so you never have to remember the Java command line.
 
+Runs on **macOS, Linux and Windows**.
+
 ## Requirements
 
-- A Java runtime (`java` on your `PATH`) — the encryption itself is done by the
-  MuleSoft Secure Properties Tool jar.
-- The `secure-properties-tool.jar` (bundled in this repo).
+- A **Java runtime** (`java` on your `PATH`) — the encryption itself is done by
+  MuleSoft's Secure Properties Tool. The jar is **embedded in the binary** and
+  extracted to `~/.lazyprop` on first run, so you don't have to manage it.
 
 ## Installation
 
-Build a single static binary with Cargo:
+Download a prebuilt binary for your platform from the
+[Releases](https://github.com/kchernokozinsky/lazyprop/releases) page, or build
+from source with Cargo:
 
 ```bash
-cargo build --release
-# binary at ./target/release/lazyprop
+cargo install --git https://github.com/kchernokozinsky/lazyprop
 ```
 
-Or install it into your Cargo bin directory:
+Or from a checkout:
 
 ```bash
+cargo build --release   # binary at ./target/release/lazyprop
 cargo install --path .
 ```
 
 ## Usage
 
-Run it from a directory that contains your `envs.yaml` and the jar (the defaults
-resolve relative to the current directory):
+Just run it — on first launch it creates `~/.lazyprop/` with a sample
+environments file and the extracted jar:
 
 ```bash
 lazyprop
 ```
 
-Override the environment file or jar location explicitly:
+Point it at a specific environments file or jar if you like:
 
 ```bash
-lazyprop --envs ./config/envs.yaml --jar ./tools/secure-properties-tool.jar
+lazyprop --envs ./config/envs.yaml --jar /opt/secure-properties-tool.jar
 ```
 
 There are three screens, shown as tabs in the header: **Main**, **Playground**
@@ -152,19 +156,31 @@ themes, and the footer hints shrink to fit narrow terminals.
 
 ## Configuration
 
-`lazyprop` reads its configuration from the first of these it finds in the
-config directory (`config.json5`, `config.json`, `config.yaml`, `config.toml`,
-`config.ini`), falling back to the bundled defaults.
+### The `~/.lazyprop` home
 
-- **Config directory**: `$LAZYPROP_CONFIG`, otherwise the platform config dir
-  (e.g. `~/Library/Application Support/com.kchernokozinsky.lazyprop` on macOS,
-  `~/.config/lazyprop` on Linux).
-- **Data / log directory**: `$LAZYPROP_DATA`, otherwise the platform data dir.
-  Logs are written to `lazyprop.log`; set `$LAZYPROP_LOG_LEVEL` (e.g. `debug`)
-  to change verbosity.
+Like Maven's `~/.m2`, lazyprop keeps its files in a home directory. On first run
+it creates **`~/.lazyprop/`** containing a sample `envs.yaml` and the extracted
+`secure-properties-tool.jar` (same location on macOS, Linux and Windows).
 
-The bundled config lives in [`.config/config.json`](.config/config.json) and
-defines `jar_path`, `envs_path`, keybindings and styles.
+The **environments file** is resolved in this order (first match wins):
+
+1. `--envs <path>` command-line flag
+2. `LAZYPROP_ENVS` environment variable
+3. `./envs.yaml` in the current directory (project-local, like a project's own
+   `settings.xml`)
+4. `~/.lazyprop/envs.yaml` (created from a sample on first run)
+
+The **jar** is resolved the same way (`--jar`, `LAZYPROP_JAR`,
+`./secure-properties-tool.jar`, then the copy in `~/.lazyprop`). Set
+`LAZYPROP_HOME` to relocate the home directory.
+
+### Keybindings, logs
+
+Keybindings and styles are read from a `config.{json5,json,yaml,toml,ini}` in
+the config directory (`$LAZYPROP_CONFIG`, otherwise the platform config dir),
+falling back to the bundled [`.config/config.json`](.config/config.json). Logs
+go to `lazyprop.log` in the data dir (`$LAZYPROP_DATA`); set `$LAZYPROP_LOG_LEVEL`
+(e.g. `debug`) to change verbosity.
 
 ## Development
 

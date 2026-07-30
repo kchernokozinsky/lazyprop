@@ -1,0 +1,28 @@
+# Changelog
+
+All notable changes to this project are documented here. The format is based on
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
+adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.1.0] - 2026-07-30
+
+First release.
+
+### Added
+
+- **Main screen** — pick an environment, type a value, and encrypt or decrypt
+  it with MuleSoft's Secure Properties Tool; add, edit, delete and search
+  environments (persisted to `envs.yaml`); reveal/hide keys; copy results to the
+  clipboard.
+- **Playground screen** — ad-hoc encrypt/decrypt with parameters entered
+  directly, no saved environment.
+- **About screen** — logo, keybindings with friendly descriptions, and app info.
+- Algorithm-aware cipher-mode selection (only valid modes are offered).
+- Encrypt/decrypt runs off the UI thread with a `Working…` indicator.
+- Text inputs with a real cursor and horizontal scrolling.
+- Self-contained binary: the jar is embedded and extracted to `~/.lazyprop` on
+  first run; environments resolve via `--envs` / `LAZYPROP_ENVS` /
+  project-local `./envs.yaml` / `~/.lazyprop/envs.yaml`.
+- Cross-platform (macOS, Linux, Windows) with CI and release binaries.
+
+[0.1.0]: https://github.com/kchernokozinsky/lazyprop/releases/tag/v0.1.0
