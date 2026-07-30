@@ -102,7 +102,16 @@ impl AboutScreen {
         lines.push(Self::section("About"));
         for (label, value) in [
             ("Version", VERSION_MESSAGE.to_string()),
-            ("Author", env!("CARGO_PKG_AUTHORS").to_string()),
+            (
+                "Author",
+                // Show the name only, never an email address.
+                env!("CARGO_PKG_AUTHORS")
+                    .split('<')
+                    .next()
+                    .unwrap_or_default()
+                    .trim()
+                    .to_string(),
+            ),
             ("Repo", env!("CARGO_PKG_REPOSITORY").to_string()),
         ] {
             lines.push(Line::from(vec![
