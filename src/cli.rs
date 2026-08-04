@@ -20,6 +20,21 @@ pub struct Cli {
     /// Path to the Secure Properties Tool jar (overrides the configured jar_path)
     #[arg(short, long, value_name = "FILE")]
     pub jar: Option<String>,
+
+    /// Open a YAML file in the YAML editor on startup
+    #[arg(long, value_name = "FILE")]
+    pub file: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::CommandFactory;
+
+    #[test]
+    fn cli_definition_is_valid() {
+        Cli::command().debug_assert();
+    }
 }
 
 pub const VERSION_MESSAGE: &str = concat!(

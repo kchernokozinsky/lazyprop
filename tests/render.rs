@@ -131,3 +131,43 @@ fn env_form_overlay_renders() {
     assert!(text.contains("Add environment"), "form title not rendered");
     assert!(text.contains("Algorithm"), "form fields not rendered");
 }
+
+#[test]
+fn yaml_screen_renders_tree() {
+    use lazyprop::components::yaml::YamlScreen;
+
+    let mut state = State::new(Some(FIXTURE.to_string()), None).expect("state should load fixture");
+    let tmp = std::env::temp_dir().join(format!("lazyprop_render_{}.yaml", std::process::id()));
+    std::fs::write(
+        &tmp,
+        "database:\n  host: localhost\n  password: \"![CIPHER]\"\nservers:\n  - host: one\n    port: 8081\n",
+    )
+    .unwrap();
+    state
+        .yaml
+        .open_path(tmp.to_str().unwrap())
+        .expect("open yaml");
+
+    let mut screen = YamlScreen::new();
+    let mut terminal = Terminal::new(TestBackend::new(100, 24)).unwrap();
+    terminal
+        .draw(|frame| {
+            screen.draw(frame, frame.area(), &state).unwrap();
+        })
+        .unwrap();
+    let text = buffer_text(&terminal);
+    for expected in [
+        "YAML",
+        "Environments",
+        "YAML tree",
+        "database",
+        "host",
+        "servers",
+    ] {
+        assert!(text.contains(expected), "yaml screen missing: {expected}");
+    }
+    // Encrypted value is masked, not shown in the clear.
+    assert!(text.contains("![••••••]"), "encrypted value not masked");
+    assert!(!text.contains("![CIPHER]"), "ciphertext should be masked");
+    let _ = std::fs::remove_file(&tmp);
+}

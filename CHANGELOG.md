@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **YAML editor screen** (`4`): open a `.yaml`/`.yml` file (browse or type a
+  path, or `--file`), navigate it as a collapsible tree, select an environment,
+  and encrypt/decrypt individual scalar values **in place** — comments, order
+  and formatting are preserved (only the selected value token changes).
+  Encrypted values use the Mule `![…]` wrapper and are masked (reveal with `r`).
+  Manual scalar editing, atomic save (`Ctrl-s`), restore-to-opened (`Ctrl-r`)
+  with confirmation, a dirty indicator, external-modification detection, and
+  node-targeted background crypto that ignores stale results.
+
 ## [0.1.1] - 2026-08-04
 
 ### Fixed

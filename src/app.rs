@@ -97,6 +97,15 @@ impl App {
         })
     }
 
+    /// Open a YAML file on startup (from `--file`) and switch to the YAML
+    /// screen. Errors are shown on that screen rather than aborting.
+    pub fn open_yaml_file(&mut self, path: &str) {
+        if let Err(e) = self.state.yaml.open_path(path) {
+            self.state.yaml.report(e, true);
+        }
+        self.state.mode = Mode::Yaml;
+    }
+
     pub async fn run(&mut self) -> Result<()> {
         let mut tui = Tui::new()?
             // .mouse(true) // uncomment this line to enable mouse support

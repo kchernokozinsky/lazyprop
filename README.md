@@ -82,8 +82,9 @@ Point it at a specific environments file or jar if you like:
 lazyprop --envs ./config/envs.yaml --jar /opt/secure-properties-tool.jar
 ```
 
-There are three screens, shown as tabs in the header: **Main**, **Playground**
-and **About**. Switch with `1` / `2` / `3` (or `?` to jump to About).
+There are four screens, shown as tabs in the header: **Main**, **Playground**,
+**About** and **YAML**. Switch with `1` / `2` / `3` / `4` (or `?` to jump to
+About).
 
 Typical flow on the **Main** screen:
 
@@ -101,6 +102,47 @@ change a choice with `←` `→`, and press `Esc` to return to Main.
 
 The **About** screen (`3` or `?`) shows a brief description, the full list of
 keybindings, and where lazyprop keeps its files; scroll it with `w` / `s`.
+
+### The YAML editor (`4`)
+
+Encrypt/decrypt individual values inside a `.yaml`/`.yml` file **in place**,
+leaving comments, ordering and formatting untouched.
+
+1. Press `4` to open the YAML screen, then `Ctrl-o` to open a file — either
+   **browse** the filesystem or `Tab` to **type a path** (`~` is expanded).
+   You can also start on it directly: `lazyprop --file ./config.yaml`.
+2. The file is shown as a collapsible tree. Move with `w`/`s` (or arrows),
+   fold/unfold with `←`/`→`, and `Tab` toggles focus between the environments
+   list and the tree.
+3. Select an environment (same environments as the Main screen).
+4. On a scalar value, press `e` to encrypt or `d` to decrypt — only that value
+   changes. Encrypted values are stored as `password: "![ciphertext]"` and are
+   masked in the tree (`r` reveals them).
+5. `Enter` on a scalar edits it manually; `Ctrl-s` saves (atomically);
+   `Ctrl-r` restores the document to exactly how it was opened (with a
+   confirmation if there are unsaved changes). The header shows `Modified` when
+   there are unsaved edits.
+
+Example — navigating to `database.password` and pressing `e` turns:
+
+```yaml
+database:
+  username: admin
+  password: secret   # unchanged comment
+```
+
+into:
+
+```yaml
+database:
+  username: admin
+  password: "![encrypted…]"   # unchanged comment
+```
+
+**Limitations:** values written with flow style (`{}`/`[]`), block/multiline
+scalars (`|`/`>`), or anchors/aliases/tags are shown but not editable in place —
+lazyprop refuses to edit them rather than reformat the file. Encrypting a
+non-string scalar (e.g. a number) necessarily makes it a quoted string.
 
 ### Searching environments
 
@@ -161,7 +203,7 @@ failing deep inside the jar.
 | ----------- | ---------------------------------------- |
 | `s` / `Down`| Select next environment / scroll down    |
 | `w` / `Up`  | Select previous environment / scroll up  |
-| `1`/`2`/`3` | Jump to Main / Playground / About        |
+| `1`/`2`/`3`/`4` | Jump to Main / Playground / About / YAML |
 | `h` / `l`   | Previous / next screen                   |
 | `Tab`       | Cycle focus (Environments ↔ Value)       |
 | `/`         | Filter the environments list by name     |
@@ -178,6 +220,11 @@ failing deep inside the jar.
 | `q`         | Quit                                     |
 | `Ctrl-c`    | Quit                                     |
 | `Ctrl-z`    | Suspend                                  |
+
+**YAML screen** (`4`): `Ctrl-o` open file · `w`/`s` navigate tree · `←`/`→`
+fold/unfold · `Enter` edit scalar (or expand/collapse) · `e`/`d`
+encrypt/decrypt the selected value · `Ctrl-s` save · `Ctrl-r` restore · `r`
+reveal · `Tab` switch focus (environments ↔ tree) · `Esc` cancel/close.
 
 In text fields (Value, and the form/playground Key/Value), `←` `→` `Home` `End`
 move the cursor, `Backspace`/`Delete` edit at it, and long values scroll

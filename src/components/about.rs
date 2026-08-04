@@ -93,6 +93,15 @@ impl AboutScreen {
             2,
             theme::hint(),
         ));
+        lines.extend(wrap_styled(
+            "Main (1) encrypts/decrypts values against a saved environment; \
+             Playground (2) does one-off values; YAML (4) opens a .yaml/.yml file \
+             as a tree and encrypts/decrypts individual scalars in place, \
+             preserving comments and formatting.",
+            width,
+            2,
+            theme::hint(),
+        ));
 
         lines.push(Line::raw(""));
         lines.push(Self::section("Keybindings"));

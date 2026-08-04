@@ -10,6 +10,9 @@ async fn main() -> Result<()> {
 
     let args = Cli::parse();
     let mut app = App::new(args.tick_rate, args.frame_rate, args.envs, args.jar)?;
+    if let Some(file) = args.file {
+        app.open_yaml_file(&file);
+    }
     app.run().await?;
     Ok(())
 }
