@@ -1,6 +1,6 @@
 [package]
 name = "lazyprop"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 description = "A terminal UI for encrypting and decrypting MuleSoft secure properties across environments"
 authors = ["kchernokozinsky"]
