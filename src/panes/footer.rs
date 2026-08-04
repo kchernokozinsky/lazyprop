@@ -130,12 +130,12 @@ mod tests {
     }
 
     #[test]
-    fn about_context_has_no_numeric_shortcuts() {
+    fn about_context_shows_screen_shortcuts() {
         let mut state = State::for_test();
         state.mode = Mode::About;
         let hints = contextual_hints(&hint_context(&state));
         assert!(hints
             .iter()
-            .all(|h| !h.key.chars().any(|c| ('1'..='4').contains(&c))));
+            .any(|h| h.key.chars().any(|c| ('1'..='4').contains(&c))));
     }
 }

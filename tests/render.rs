@@ -124,17 +124,17 @@ fn footer_text(state: &State, w: u16) -> String {
 }
 
 #[test]
-fn footer_is_contextual_and_hides_numeric_shortcuts() {
+fn footer_is_contextual() {
     use lazyprop::app::Mode;
 
     let mut state = State::new(Some(FIXTURE.to_string()), None).expect("state");
 
-    // Main screen: real actions, no numeric screen shortcuts.
+    // Main screen: real actions plus the numeric screen shortcuts.
     state.mode = Mode::Main;
     let main = footer_text(&state, 120);
     assert!(main.contains("Encrypt"), "main footer: {main}");
     assert!(main.contains("Quit"));
-    assert!(!main.contains('1') && !main.contains('2') && !main.contains('3'));
+    assert!(main.contains("1/2/3/4"), "screen shortcuts missing: {main}");
 
     // YAML with no file: no Save / Encrypt / Decrypt.
     state.mode = Mode::Yaml;

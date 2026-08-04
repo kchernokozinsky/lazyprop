@@ -148,6 +148,7 @@ pub fn contextual_hints(ctx: &HintContext) -> Vec<KeyHint> {
             KeyHint::secondary("R", "Reveal"),
             KeyHint::primary("W/S", "Move"),
             KeyHint::secondary("Tab", "Focus"),
+            screens_hint(),
             KeyHint::critical("Q", "Quit"),
         ],
         C::MainEditing => vec![
@@ -163,6 +164,7 @@ pub fn contextual_hints(ctx: &HintContext) -> Vec<KeyHint> {
             KeyHint::primary("←/→", "Change"),
             KeyHint::primary("Enter", "Generate"),
             KeyHint::secondary("Ctrl+Y", "Copy"),
+            screens_hint(),
             KeyHint::critical("Esc", "Back"),
         ],
         C::PlaygroundEditing => vec![
@@ -172,6 +174,7 @@ pub fn contextual_hints(ctx: &HintContext) -> Vec<KeyHint> {
         C::About => vec![
             KeyHint::primary("←/→", "Guide"),
             KeyHint::primary("↑/↓", "Scroll"),
+            screens_hint(),
             KeyHint::critical("Esc", "Back"),
         ],
         C::YamlEditing => vec![
@@ -211,6 +214,13 @@ pub fn contextual_hints(ctx: &HintContext) -> Vec<KeyHint> {
     }
 }
 
+/// The numeric screen-switch shortcut, shown on every top-level screen footer
+/// (not inside modals, confirmations or edit modes). Primary so it survives on
+/// realistically-sized terminals, dropping only when space is very tight.
+fn screens_hint() -> KeyHint {
+    KeyHint::primary("1/2/3/4", "Screens")
+}
+
 fn confirmation_hints(kind: ConfirmationKind) -> Vec<KeyHint> {
     use ConfirmationKind as K;
     match kind {
@@ -240,6 +250,7 @@ fn yaml_hints(y: &YamlHints) -> Vec<KeyHint> {
         return vec![
             KeyHint::primary("Ctrl+O", "Open file"),
             KeyHint::secondary("Tab", "Focus"),
+            screens_hint(),
             KeyHint::critical("Esc", "Back"),
         ];
     }
@@ -250,6 +261,7 @@ fn yaml_hints(y: &YamlHints) -> Vec<KeyHint> {
             KeyHint::primary("W/S", "Select environment"),
             KeyHint::secondary("A", "Add environment"),
             KeyHint::primary("Tab", "Next pane"),
+            screens_hint(),
             KeyHint::critical("Q", "Quit"),
         ];
     }
@@ -291,6 +303,7 @@ fn yaml_hints(y: &YamlHints) -> Vec<KeyHint> {
         hints.push(KeyHint::secondary("Ctrl+S", "Save"));
         hints.push(KeyHint::secondary("Ctrl+R", "Restore"));
     }
+    hints.push(screens_hint());
     hints.push(KeyHint::critical("Q", "Quit"));
     hints
 }
@@ -422,22 +435,19 @@ mod tests {
         }))
     }
 
+    fn has_numeric(hints: &[KeyHint]) -> bool {
+        hints
+            .iter()
+            .any(|h| h.key.chars().any(|c| ('1'..='4').contains(&c)))
+    }
+
     #[test]
-    fn no_numeric_screen_shortcuts_anywhere() {
-        let contexts = [
+    fn numeric_shortcuts_only_on_top_level_screens() {
+        // Shown on every top-level screen footer.
+        let with_shortcuts = [
             HintContext::Main,
-            HintContext::MainEditing,
-            HintContext::MainSearching,
             HintContext::Playground,
-            HintContext::PlaygroundEditing,
             HintContext::About,
-            HintContext::YamlEditing,
-            HintContext::PathInput,
-            HintContext::FileBrowser {
-                on_dir: false,
-                on_yaml: true,
-            },
-            HintContext::Confirmation(ConfirmationKind::UnsavedQuit),
             HintContext::Yaml(YamlHints {
                 focus: YamlHintFocus::Tree,
                 file_open: true,
@@ -446,15 +456,49 @@ mod tests {
                 env_selected: true,
                 selection: Some(YamlSelectionKind::ScalarPlain),
             }),
+            HintContext::Yaml(YamlHints {
+                focus: YamlHintFocus::Environments,
+                file_open: true,
+                crypto_in_progress: false,
+                dirty: false,
+                env_selected: true,
+                selection: None,
+            }),
+            HintContext::Yaml(YamlHints {
+                focus: YamlHintFocus::Tree,
+                file_open: false,
+                crypto_in_progress: false,
+                dirty: false,
+                env_selected: false,
+                selection: None,
+            }),
         ];
-        for ctx in &contexts {
-            for h in contextual_hints(ctx) {
-                assert!(
-                    !h.key.chars().any(|c| ('1'..='4').contains(&c)),
-                    "numeric screen shortcut leaked in {ctx:?}: {}",
-                    h.key
-                );
-            }
+        for ctx in &with_shortcuts {
+            assert!(
+                has_numeric(&contextual_hints(ctx)),
+                "screen shortcut missing in {ctx:?}"
+            );
+        }
+
+        // Never inside a modal, confirmation or edit mode.
+        let without = [
+            HintContext::MainEditing,
+            HintContext::MainSearching,
+            HintContext::PlaygroundEditing,
+            HintContext::YamlEditing,
+            HintContext::PathInput,
+            HintContext::FileBrowser {
+                on_dir: false,
+                on_yaml: true,
+            },
+            HintContext::Confirmation(ConfirmationKind::UnsavedQuit),
+            HintContext::EnvForm,
+        ];
+        for ctx in &without {
+            assert!(
+                !has_numeric(&contextual_hints(ctx)),
+                "unexpected screen shortcut in {ctx:?}"
+            );
         }
     }
 

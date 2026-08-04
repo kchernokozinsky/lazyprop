@@ -265,12 +265,13 @@ impl AboutScreen {
             .collect()
     }
 
-    /// The tab bar of guide names, active one accented.
+    /// The tab bar of guide names, active one accented. Generously spaced with
+    /// a dim dot separator so the guides read as distinct tabs.
     fn guide_tabs(&self) -> Line<'static> {
-        let mut spans = Vec::new();
+        let mut spans = vec![Span::raw("  ")];
         for (i, g) in Guide::ALL.iter().enumerate() {
             if i > 0 {
-                spans.push(Span::raw("   "));
+                spans.push(Span::styled("     ·     ", theme::hint()));
             }
             let style = if *g == self.guide {
                 Style::default()
