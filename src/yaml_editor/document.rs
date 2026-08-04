@@ -9,7 +9,7 @@
 //! non-editable rather than silently rewritten.
 
 /// A segment of a node's logical path.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum PathSeg {
     Key(String),
     Index(usize),
