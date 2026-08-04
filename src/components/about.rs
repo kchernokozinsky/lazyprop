@@ -49,156 +49,132 @@ impl Guide {
     }
 }
 
-/// A titled block of guidance within a guide page.
-struct GuideBlock {
-    heading: &'static str,
-    body: &'static [&'static str],
+/// A single key → action row in a guide.
+struct KeyRow {
+    key: &'static str,
+    desc: &'static str,
 }
 
-/// The static content of a single guide (config-derived rows are appended at
-/// render time, so raw key labels are not duplicated here).
+/// A titled block of keybindings within a guide page, with an optional one-line
+/// note.
+struct GuideBlock {
+    heading: &'static str,
+    keys: &'static [KeyRow],
+    note: Option<&'static str>,
+}
+
+/// The static content of a single guide (the General guide also appends
+/// config-derived rows at render time).
 struct GuideContent {
+    /// A one-line summary shown under the heading.
+    summary: &'static str,
     blocks: &'static [GuideBlock],
+}
+
+macro_rules! keys {
+    ($( $k:literal => $d:literal ),* $(,)?) => {
+        &[ $( KeyRow { key: $k, desc: $d } ),* ]
+    };
 }
 
 fn guide_content(guide: Guide) -> GuideContent {
     match guide {
         Guide::Main => GuideContent {
+            summary: "Encrypt/decrypt values against a saved environment.",
             blocks: &[
                 GuideBlock {
-                    heading: "Main screen",
-                    body: &["Encrypt or decrypt a value against a saved environment. \
-                         The environment's algorithm, cipher mode and key come from \
-                         your environments file."],
-                },
-                GuideBlock {
                     heading: "Environments",
-                    body: &[
-                        "The list on the left shows every saved environment. Select \
-                         one with W/S (or the arrow keys).",
-                        "A: add a new environment. Enter: edit the selected one. \
-                         X: delete it (with confirmation). /: filter the list by name.",
-                        "Keys are masked; press R to reveal or hide the selected key.",
+                    keys: keys![
+                        "W / S"  => "Select environment",
+                        "A"      => "Add environment",
+                        "Enter"  => "Edit environment",
+                        "X"      => "Delete environment",
+                        "/"      => "Filter the list",
+                        "R"      => "Reveal / hide key",
                     ],
+                    note: None,
                 },
                 GuideBlock {
-                    heading: "Encrypting",
-                    body: &[
-                        "Press Tab to focus the value field and type or paste a value, \
-                         then Esc to return. Press E to encrypt or D to decrypt; the \
-                         result appears in the Result pane and Ctrl+Y copies it.",
+                    heading: "Encrypt / decrypt",
+                    keys: keys![
+                        "Tab"    => "Focus the value field",
+                        "E"      => "Encrypt value",
+                        "D"      => "Decrypt value",
+                        "Ctrl+Y" => "Copy result",
+                        "Esc"    => "Leave the field",
                     ],
+                    note: None,
                 },
             ],
         },
         Guide::Playground => GuideContent {
-            blocks: &[
-                GuideBlock {
-                    heading: "Playground screen",
-                    body: &[
-                        "A one-off encrypt/decrypt form with no saved environment — \
-                         enter every parameter directly.",
-                    ],
-                },
-                GuideBlock {
-                    heading: "Fields",
-                    body: &["Move between fields with Tab or the arrow keys. Change a \
-                         choice (Operation, Algorithm, Mode, Random IV) with ←/→. \
-                         Type into the Key and Value fields."],
-                },
-                GuideBlock {
-                    heading: "Running",
-                    body: &["Press Enter to generate the result. Ctrl+Y copies it. \
-                         Errors and progress are shown in the Result pane. Esc \
-                         returns to Main."],
-                },
-            ],
+            summary: "One-off encrypt/decrypt, no saved environment.",
+            blocks: &[GuideBlock {
+                heading: "Fields & run",
+                keys: keys![
+                    "Tab / ↑ / ↓" => "Move between fields",
+                    "← / →"       => "Change a choice",
+                    "Enter"       => "Generate result",
+                    "Ctrl+Y"      => "Copy result",
+                    "Esc"         => "Back to Main",
+                ],
+                note: Some("Type into the Key and Value fields; choices are Operation, Algorithm, Mode and Random IV."),
+            }],
         },
         Guide::Yaml => GuideContent {
+            summary: "Encrypt/decrypt values inside a .yaml/.yml file, in place.",
             blocks: &[
                 GuideBlock {
-                    heading: "YAML screen",
-                    body: &["Encrypt or decrypt individual values inside a .yaml/.yml \
-                         file in place — comments, ordering and formatting are \
-                         preserved."],
-                },
-                GuideBlock {
-                    heading: "Opening a file",
-                    body: &[
-                        "Press Ctrl+O to open the file dialog. Browse the filesystem \
-                         with the arrow keys and Enter, or press Tab to type a path \
-                         (~ is expanded). You can also start with --file <path>.",
+                    heading: "Open & navigate",
+                    keys: keys![
+                        "Ctrl+O" => "Open a file (browse / path)",
+                        "W / S"  => "Move in the tree",
+                        "← / →"  => "Collapse / expand",
+                        "Tab"    => "Switch pane",
+                        "/"      => "Search the tree",
                     ],
+                    note: None,
                 },
                 GuideBlock {
-                    heading: "Navigating the tree",
-                    body: &["Move with W/S (or arrows). Expand/collapse a mapping or \
-                         sequence with →/← or Enter. Tab switches focus between the \
-                         environments list and the tree."],
-                },
-                GuideBlock {
-                    heading: "Editing values",
-                    body: &[
-                        "Select an environment, then on a scalar press E to encrypt \
-                         or D to decrypt only that value. Enter edits it manually. \
-                         Encrypted values are stored as \"![...]\" and masked; R \
-                         reveals them. Ctrl+Z / Ctrl+Y undo and redo.",
+                    heading: "Edit & crypt",
+                    keys: keys![
+                        "Enter"           => "Edit scalar",
+                        "e / d"           => "Encrypt / decrypt value",
+                        "E / D"           => "Bulk on the subtree",
+                        "R"               => "Reveal value",
+                        "A"               => "Add environment",
+                        "Ctrl+Z / Ctrl+Y" => "Undo / redo",
                     ],
+                    note: None,
                 },
                 GuideBlock {
-                    heading: "Modified highlighting",
-                    body: &["A property whose value differs from the file as opened is \
-                         marked with a subtle ● before its name (containers show it \
-                         when a descendant changed). Editing a value back to its \
-                         original clears the mark."],
-                },
-                GuideBlock {
-                    heading: "Saving and restoring",
-                    body: &["Ctrl+S saves atomically and becomes the new baseline. \
-                         Ctrl+R restores the document to exactly how it was opened. \
-                         Leaving or opening another file with unsaved changes prompts \
-                         to Save, Discard or Cancel."],
-                },
-                GuideBlock {
-                    heading: "Limitations",
-                    body: &["Flow style ({}/[]), block/multiline scalars (|/>) and \
-                         anchors/aliases/tags are shown but not editable in place — \
-                         the editor refuses to reformat the file. Encrypting a \
-                         non-string scalar makes it a quoted string."],
+                    heading: "Save & restore",
+                    keys: keys![
+                        "Ctrl+S" => "Save (atomic)",
+                        "Ctrl+R" => "Restore to opened",
+                    ],
+                    note: Some("A ● marks each modified property until it is saved, restored, or edited back to its original value. Flow style, block scalars and anchors are not editable in place."),
                 },
             ],
         },
         Guide::General => GuideContent {
+            summary: "Application-wide navigation and configuration.",
             blocks: &[
                 GuideBlock {
                     heading: "Navigation",
-                    body: &[
-                        "Switch screens with h/l (previous/next). The footer always \
-                         shows the actions valid right now for the current screen, \
-                         focus and mode.",
+                    keys: keys![
+                        "1 / 2 / 3 / 4" => "Jump to a screen",
+                        "h / l"         => "Previous / next screen",
+                        "?"             => "About / help",
+                        "Esc"           => "Close modal / cancel",
+                        "Q / Ctrl+C"    => "Quit",
                     ],
-                },
-                GuideBlock {
-                    heading: "Modals and dialogs",
-                    body: &[
-                        "While a dialog is open only its actions apply. Confirmations \
-                         use Y / Esc; the unsaved-changes prompt uses S (save), D \
-                         (discard) and Esc (cancel). Esc closes a modal or leaves an \
-                         input.",
-                    ],
-                },
-                GuideBlock {
-                    heading: "Quitting",
-                    body: &["Press Q or Ctrl+C to quit."],
+                    note: Some("Confirmations use Y / Esc; the unsaved-changes prompt uses S (save), D (discard) and Esc."),
                 },
                 GuideBlock {
                     heading: "Configuration",
-                    body: &[
-                        "Keybindings and styles are read from a config file in your \
-                         config directory, falling back to the bundled defaults. \
-                         Environments live in your environments file (--envs / \
-                         LAZYPROP_ENVS / ./envs.yaml / ~/.lazyprop/envs.yaml).",
-                    ],
+                    keys: &[],
+                    note: Some("Keybindings and styles load from a config file (else the bundled defaults). Environments: --envs / LAZYPROP_ENVS / ./envs.yaml / ~/.lazyprop/envs.yaml."),
                 },
             ],
         },
@@ -286,30 +262,48 @@ impl AboutScreen {
     }
 
     fn content(&self, width: usize) -> Vec<Line<'static>> {
+        let content = guide_content(self.guide);
         let mut lines: Vec<Line> = Vec::new();
-        for block in guide_content(self.guide).blocks {
+
+        // Summary line, then a blank spacer.
+        lines.extend(wrap_styled(content.summary, width, 0, theme::hint_italic()));
+        lines.push(Line::raw(""));
+
+        for block in content.blocks {
             lines.push(Line::from(Span::styled(
                 block.heading.to_string(),
                 theme::label(),
             )));
-            for para in block.body {
-                lines.extend(wrap_styled(para, width, 2, theme::hint()));
-                lines.push(Line::raw(""));
+            lines.push(Line::raw(""));
+            for row in block.keys {
+                lines.push(key_row(row.key, row.desc));
             }
+            if let Some(note) = block.note {
+                if !block.keys.is_empty() {
+                    lines.push(Line::raw(""));
+                }
+                lines.extend(wrap_styled(note, width, 2, theme::hint_italic()));
+            }
+            // Generous spacing between blocks.
+            lines.push(Line::raw(""));
+            lines.push(Line::raw(""));
         }
 
-        // The General guide lists the configured Main keybindings and app info.
+        // The General guide also lists the configured Main keybindings and app info.
         if self.guide == Guide::General {
             lines.push(Line::from(Span::styled(
                 "Main keybindings".to_string(),
                 theme::label(),
             )));
+            lines.push(Line::raw(""));
             lines.extend(self.keybinding_lines());
+            lines.push(Line::raw(""));
             lines.push(Line::raw(""));
             lines.push(Line::from(Span::styled(
                 "About".to_string(),
                 theme::label(),
             )));
+            lines.push(Line::raw(""));
             for (label, value) in [
                 ("Version", VERSION_MESSAGE.to_string()),
                 (
@@ -332,6 +326,16 @@ impl AboutScreen {
         }
         lines
     }
+}
+
+/// A single aligned key → description row: `  Ctrl+O        Open a file`.
+fn key_row(key: &str, desc: &str) -> Line<'static> {
+    Line::from(vec![
+        Span::raw("  "),
+        Span::styled(format!("{key:<16}"), theme::key()),
+        Span::raw("  "),
+        Span::styled(desc.to_string(), theme::hint()),
+    ])
 }
 
 /// Word-wrap `text` to `width` cells with a left `indent`, returning styled lines.
@@ -389,17 +393,21 @@ impl Component for AboutScreen {
             .title(title)
             .borders(Borders::ALL)
             .border_style(Style::default().fg(theme::accent()))
-            .padding(Padding::new(2, 2, 0, 0));
+            .padding(Padding::new(3, 3, 1, 1));
         let inner = block.inner(area);
         frame.render_widget(block, area);
         if inner.width == 0 || inner.height == 0 {
             return Ok(());
         }
 
-        // Prioritise (top to bottom): guide tabs, a separator, then scrollable
-        // content. All are optional as height shrinks.
-        let [tabs_area, body_area] =
-            Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).areas(inner);
+        // Prioritise (top to bottom): guide tabs, a blank separator, then the
+        // scrollable content. All are optional as height shrinks.
+        let [tabs_area, _gap, body_area] = Layout::vertical([
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Fill(1),
+        ])
+        .areas(inner);
         frame.render_widget(self.guide_tabs(), tabs_area);
 
         let width = inner.width as usize;
@@ -418,12 +426,19 @@ mod tests {
     use super::*;
 
     fn body_text(guide: Guide) -> String {
-        guide_content(guide)
-            .blocks
-            .iter()
-            .flat_map(|b| std::iter::once(b.heading).chain(b.body.iter().copied()))
-            .collect::<Vec<_>>()
-            .join("\n")
+        let content = guide_content(guide);
+        let mut parts: Vec<String> = vec![guide.title().to_string(), content.summary.to_string()];
+        for b in content.blocks {
+            parts.push(b.heading.to_string());
+            for row in b.keys {
+                parts.push(row.key.to_string());
+                parts.push(row.desc.to_string());
+            }
+            if let Some(note) = b.note {
+                parts.push(note.to_string());
+            }
+        }
+        parts.join("\n")
     }
 
     #[test]
