@@ -12,6 +12,7 @@ pub mod envs;
 pub mod footer;
 pub mod header;
 pub mod input;
+pub mod popup;
 pub mod result;
 pub mod status;
 

@@ -8,9 +8,10 @@ use tokio::sync::mpsc::UnboundedSender;
 use super::Component;
 use crate::{
     action::Action,
+    hints::{contextual_hints, ConfirmationKind, HintContext},
     panes::{
-        details::DetailsPane, envs::EnvsPane, input::InputPane, result::ResultPane,
-        status::StatusPane, Pane,
+        details::DetailsPane, envs::EnvsPane, input::InputPane, popup::render_popup,
+        result::ResultPane, status::StatusPane, Pane,
     },
     state::{FormField, InputMode, State},
     theme,
@@ -72,28 +73,14 @@ impl Home {
         let Some(name) = state.pending_delete_name() else {
             return;
         };
-        let popup = centered_rect(50, 20, area);
-        frame.render_widget(Clear, popup);
-        let lines = vec![
-            Line::raw(""),
-            Line::from(vec![
-                Span::raw("  Delete environment "),
-                Span::styled(
-                    format!("'{name}'"),
-                    Style::default()
-                        .fg(theme::error())
-                        .add_modifier(Modifier::BOLD),
-                ),
-                Span::raw("?"),
-            ]),
-            Line::raw(""),
-            Line::from(Span::styled("  y confirm · n / Esc cancel", theme::hint())),
-        ];
-        let block = Block::default()
-            .title(" Confirm delete ")
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(theme::error()));
-        frame.render_widget(Paragraph::new(lines).block(block), popup);
+        render_popup(
+            frame,
+            area,
+            "Confirm delete",
+            &[format!("Delete environment '{name}'?")],
+            &contextual_hints(&HintContext::Confirmation(ConfirmationKind::DeleteEnv)),
+            theme::error(),
+        );
     }
 }
 

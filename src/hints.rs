@@ -340,6 +340,41 @@ pub fn popup_action_line(hints: &[KeyHint]) -> Line<'static> {
     spans_for(hints)
 }
 
+/// Pack hints onto as few rows as fit in `width` cells, wrapping to new rows
+/// rather than dropping any hint. Always returns at least one row (which may
+/// itself overflow if a single hint is wider than `width`).
+pub fn action_lines(hints: &[KeyHint], width: usize) -> Vec<Line<'static>> {
+    if hints.is_empty() {
+        return vec![Line::from(Span::raw(""))];
+    }
+    let avail = width.saturating_sub(1).max(1);
+    let sep_w = SEP.chars().count();
+    let mut rows: Vec<Vec<KeyHint>> = Vec::new();
+    let mut cur: Vec<KeyHint> = Vec::new();
+    let mut cur_w = 0usize;
+    for h in hints {
+        let add = if cur.is_empty() {
+            h.width()
+        } else {
+            sep_w + h.width()
+        };
+        if !cur.is_empty() && cur_w + add > avail {
+            rows.push(std::mem::take(&mut cur));
+            cur_w = 0;
+        }
+        cur_w += if cur.is_empty() {
+            h.width()
+        } else {
+            sep_w + h.width()
+        };
+        cur.push(h.clone());
+    }
+    if !cur.is_empty() {
+        rows.push(cur);
+    }
+    rows.iter().map(|r| spans_for(r)).collect()
+}
+
 fn spans_for(hints: &[KeyHint]) -> Line<'static> {
     let mut spans = vec![Span::raw(" ")];
     for (i, h) in hints.iter().enumerate() {

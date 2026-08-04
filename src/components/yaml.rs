@@ -6,6 +6,8 @@ use ratatui::{
 
 use super::Component;
 use crate::{
+    hints::{contextual_hints, ConfirmationKind, HintContext},
+    panes::popup::render_popup,
     state::State,
     theme,
     yaml_editor::{
@@ -320,13 +322,13 @@ fn draw_overlays(frame: &mut Frame, area: Rect, state: &State) {
                     dir,
                 );
                 frame.render_stateful_widget(list, body, &mut ls);
-                let msg = modal
-                    .browser
-                    .error
-                    .clone()
-                    .or_else(|| modal.error.clone())
-                    .unwrap_or_else(|| "↑↓ move · Enter open · Esc cancel".to_string());
-                frame.render_widget(Line::from(Span::styled(msg, theme::hint())), hint);
+                // Navigation hints live in the shared footer; show only errors here.
+                if let Some(msg) = modal.browser.error.clone().or_else(|| modal.error.clone()) {
+                    frame.render_widget(
+                        Line::from(Span::styled(msg, Style::default().fg(theme::error()))),
+                        hint,
+                    );
+                }
             }
             OpenMode::Path => {
                 let [label, input, hint] = Layout::vertical([
@@ -342,59 +344,62 @@ fn draw_overlays(frame: &mut Frame, area: Rect, state: &State) {
                     "e.g. ./config.yaml or ~/config.yml",
                 );
                 frame.render_widget(Line::from(spans), input);
-                let msg = modal
-                    .error
-                    .clone()
-                    .unwrap_or_else(|| "Enter to open · Esc cancel".to_string());
-                frame.render_widget(
-                    Line::from(Span::styled(msg, Style::default().fg(theme::error()))),
-                    hint,
-                );
+                // Navigation hints live in the shared footer; show only errors here.
+                if let Some(msg) = modal.error.clone() {
+                    frame.render_widget(
+                        Line::from(Span::styled(msg, Style::default().fg(theme::error()))),
+                        hint,
+                    );
+                }
             }
         }
     }
 
     if let Some(confirm) = &y.confirm {
-        let popup = centered(50, 22, area);
-        frame.render_widget(Clear, popup);
-        let text = match confirm {
-            Confirm::Restore => "Discard unsaved changes and restore the opened content?",
-            Confirm::OverwriteExternal => "File changed on disk. Overwrite it?",
+        let (title, msg, kind) = match confirm {
+            Confirm::Restore => (
+                "Confirm",
+                vec!["Discard unsaved changes and restore the opened content?".to_string()],
+                ConfirmationKind::Restore,
+            ),
+            Confirm::OverwriteExternal => (
+                "Confirm",
+                vec!["This file changed on disk. Overwrite it?".to_string()],
+                ConfirmationKind::OverwriteExternal,
+            ),
         };
-        let lines = vec![
-            Line::raw(""),
-            Line::from(Span::raw(format!("  {text}"))),
-            Line::raw(""),
-            Line::from(Span::styled("  y confirm · n / Esc cancel", theme::hint())),
-        ];
-        let block = Block::default()
-            .title(" Confirm ")
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(theme::error()));
-        frame.render_widget(Paragraph::new(lines).block(block), popup);
+        render_popup(
+            frame,
+            area,
+            title,
+            &msg,
+            &contextual_hints(&HintContext::Confirmation(kind)),
+            theme::error(),
+        );
     }
 
     if let Some(guard) = y.guard() {
-        let popup = centered(56, 26, area);
-        frame.render_widget(Clear, popup);
-        let text = match guard {
-            Guard::Quit => "Unsaved changes. Quit anyway?",
-            Guard::Open(_) => "Unsaved changes. Open another file?",
+        let (msg, kind) = match guard {
+            Guard::Quit => (
+                vec!["You have unsaved changes. Quit anyway?".to_string()],
+                ConfirmationKind::UnsavedQuit,
+            ),
+            Guard::Open(path) => (
+                vec![
+                    "You have unsaved changes. Open another file?".to_string(),
+                    path.clone(),
+                ],
+                ConfirmationKind::UnsavedOpen,
+            ),
         };
-        let lines = vec![
-            Line::raw(""),
-            Line::from(Span::raw(format!("  {text}"))),
-            Line::raw(""),
-            Line::from(Span::styled(
-                "  s save · d discard · c / Esc cancel",
-                theme::hint(),
-            )),
-        ];
-        let block = Block::default()
-            .title(" Unsaved changes ")
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(theme::error()));
-        frame.render_widget(Paragraph::new(lines).block(block), popup);
+        render_popup(
+            frame,
+            area,
+            "Unsaved changes",
+            &msg,
+            &contextual_hints(&HintContext::Confirmation(kind)),
+            theme::error(),
+        );
     }
 }
 
