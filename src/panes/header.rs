@@ -4,11 +4,22 @@ use ratatui::prelude::*;
 use crate::{app::Mode, cli::VERSION_MESSAGE, panes::Pane, state::State, theme};
 
 #[derive(Default)]
-pub struct HeaderPane {}
+pub struct HeaderPane {
+    /// Clickable tab regions from the last draw: `(mode, row, start_col, end_col)`.
+    tabs: Vec<(Mode, u16, u16, u16)>,
+}
 
 impl HeaderPane {
     pub fn new() -> Self {
-        Self {}
+        Self { tabs: Vec::new() }
+    }
+
+    /// The screen whose tab covers `(col, row)`, if any (for mouse clicks).
+    pub fn tab_at(&self, col: u16, row: u16) -> Option<Mode> {
+        self.tabs
+            .iter()
+            .find(|(_, r, start, end)| *r == row && col >= *start && col < *end)
+            .map(|(mode, _, _, _)| *mode)
     }
 
     /// A tab as two spans: a dimmed shortcut number and the screen name.
@@ -42,14 +53,26 @@ impl Pane for HeaderPane {
             Layout::horizontal([Constraint::Fill(1), Constraint::Length(title_width)]).areas(area);
 
         let gap = || Span::raw("   ");
+        let tabs = [
+            (Mode::Main, "1", "Main"),
+            (Mode::Playground, "2", "Playground"),
+            (Mode::Yaml, "3", "YAML"),
+            (Mode::About, "4", "About"),
+        ];
         let mut spans = vec![Span::raw(" ")];
-        spans.extend(Self::tab("1", "Main", state.mode == Mode::Main));
-        spans.push(gap());
-        spans.extend(Self::tab("2", "Playground", state.mode == Mode::Playground));
-        spans.push(gap());
-        spans.extend(Self::tab("3", "YAML", state.mode == Mode::Yaml));
-        spans.push(gap());
-        spans.extend(Self::tab("4", "About", state.mode == Mode::About));
+        // Track each tab's clickable column range for mouse hit-testing.
+        self.tabs.clear();
+        let mut col = left.x + 1; // leading space
+        for (i, (mode, num, label)) in tabs.iter().enumerate() {
+            if i > 0 {
+                spans.push(gap());
+                col += 3;
+            }
+            spans.extend(Self::tab(num, label, state.mode == *mode));
+            let width = (num.len() + 1 + label.len()) as u16;
+            self.tabs.push((*mode, left.y, col, col + width));
+            col += width;
+        }
         frame.render_widget(Line::from(spans), left);
 
         let title = Line::from(vec![
