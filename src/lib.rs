@@ -13,3 +13,4 @@ pub mod state;
 pub mod text_field;
 pub mod theme;
 pub mod tui;
+pub mod yaml_editor;
