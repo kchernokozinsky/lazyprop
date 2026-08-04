@@ -62,14 +62,48 @@ fn about_screen_renders_help_and_info() {
         .unwrap();
 
     let text = buffer_text(&terminal);
-    for expected in ["About lazyprop", "Keybindings", "Version", "Author", "Repo"] {
+    // The guide tab bar and the default (Main) guide are shown.
+    for expected in [
+        "Guides",
+        "Main",
+        "Playground",
+        "YAML",
+        "General",
+        "Environments",
+    ] {
         assert!(text.contains(expected), "about screen missing: {expected}");
     }
-    // Keybindings show friendly descriptions, not raw action names.
+    // The Main guide does not leak numeric screen shortcuts into the content.
     assert!(
-        text.contains("Add environment"),
-        "friendly descriptions missing"
+        !text.contains("1 Main") && !text.contains("2 Playground"),
+        "numeric screen shortcuts should not appear"
     );
+
+    // Switch to the General guide (Right, Right, Right from Main) and confirm
+    // it lists config-derived keybindings and app info.
+    for _ in 0..3 {
+        about
+            .handle_key_event(
+                crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Right),
+                &state,
+            )
+            .unwrap();
+    }
+    terminal
+        .draw(|frame| {
+            about.draw(frame, frame.area(), &state).unwrap();
+        })
+        .unwrap();
+    let text = buffer_text(&terminal);
+    for expected in [
+        "Main keybindings",
+        "Version",
+        "Author",
+        "Repo",
+        "Add environment",
+    ] {
+        assert!(text.contains(expected), "general guide missing: {expected}");
+    }
     assert!(
         !text.contains("AddEnv"),
         "raw action name should not appear"
