@@ -1,7 +1,7 @@
 name: Release
 
 # Build release binaries and attach them to the GitHub Release when a version
-# tag (e.g. v0.1.0) is pushed.
+# tag (e.g. v0.1.0) is pushed, then bump the Homebrew tap and Scoop bucket.
 on:
   push:
     tags:
@@ -51,3 +51,86 @@ jobs:
           zip: windows
           checksum: sha256
           token: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-packages:
+    name: Update Homebrew tap & Scoop bucket
+    needs: upload-assets
+    runs-on: ubuntu-latest
+    # Requires a PACKAGES_TOKEN secret: a (fine-grained) PAT with Contents:
+    # Read and write on kchernokozinsky/homebrew-tap and .../scoop-bucket.
+    steps:
+      - name: Check out the Homebrew tap
+        uses: actions/checkout@v4
+        with:
+          repository: kchernokozinsky/homebrew-tap
+          token: ${{ secrets.PACKAGES_TOKEN }}
+          path: homebrew-tap
+      - name: Check out the Scoop bucket
+        uses: actions/checkout@v4
+        with:
+          repository: kchernokozinsky/scoop-bucket
+          token: ${{ secrets.PACKAGES_TOKEN }}
+          path: scoop-bucket
+      - name: Update manifests
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          base="https://github.com/${{ github.repository }}/releases/download/${GITHUB_REF_NAME}"
+
+          # The .sha256 assets are published by upload-assets; retry briefly in
+          # case the CDN is still catching up.
+          fetch_sha() {
+            local url="$1" h
+            for _ in 1 2 3 4 5 6; do
+              if h="$(curl -fsSL "$url" | awk '{print $1}')" && [ -n "$h" ]; then
+                echo "$h"; return 0
+              fi
+              sleep 5
+            done
+            echo "could not fetch checksum: $url" >&2
+            return 1
+          }
+
+          sha_arm="$(fetch_sha "$base/lazyprop-aarch64-apple-darwin.sha256")"
+          sha_intel="$(fetch_sha "$base/lazyprop-x86_64-apple-darwin.sha256")"
+          sha_linux="$(fetch_sha "$base/lazyprop-x86_64-unknown-linux-gnu.sha256")"
+          sha_win="$(fetch_sha "$base/lazyprop-x86_64-pc-windows-msvc.sha256")"
+
+          # Homebrew: bump the version line and the three sha256 lines in order
+          # (arm, intel, linux). URLs interpolate #{version}, so they self-update.
+          awk -v v="$version" -v a="$sha_arm" -v i="$sha_intel" -v l="$sha_linux" '
+            /^  version "/ { sub(/"[^"]*"/, "\"" v "\""); print; next }
+            /sha256 "/ {
+              n++; h = (n == 1 ? a : (n == 2 ? i : l))
+              sub(/"[0-9a-fA-F]*"/, "\"" h "\""); print; next
+            }
+            { print }
+          ' homebrew-tap/Formula/lazyprop.rb > homebrew-tap/Formula/lazyprop.rb.tmp
+          mv homebrew-tap/Formula/lazyprop.rb.tmp homebrew-tap/Formula/lazyprop.rb
+
+          # Scoop: jq keeps the JSON valid and leaves the autoupdate $version
+          # placeholder untouched.
+          jq --arg v "$version" --arg h "$sha_win" \
+            '.version = $v
+             | .architecture["64bit"].url = "https://github.com/kchernokozinsky/lazyprop/releases/download/v\($v)/lazyprop-x86_64-pc-windows-msvc.zip"
+             | .architecture["64bit"].hash = $h' \
+            scoop-bucket/bucket/lazyprop.json > scoop-bucket/bucket/lazyprop.json.tmp
+          mv scoop-bucket/bucket/lazyprop.json.tmp scoop-bucket/bucket/lazyprop.json
+
+          echo "== homebrew diff =="; git -C homebrew-tap --no-pager diff || true
+          echo "== scoop diff =="; git -C scoop-bucket --no-pager diff || true
+      - name: Commit & push
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          for repo in homebrew-tap scoop-bucket; do
+            git -C "$repo" config user.name "github-actions[bot]"
+            git -C "$repo" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git -C "$repo" add -A
+            if git -C "$repo" diff --cached --quiet; then
+              echo "$repo already up to date"
+            else
+              git -C "$repo" commit -m "lazyprop $version"
+              git -C "$repo" push
+            fi
+          done
