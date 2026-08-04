@@ -26,17 +26,6 @@ pub struct Cli {
     pub file: Option<String>,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use clap::CommandFactory;
-
-    #[test]
-    fn cli_definition_is_valid() {
-        Cli::command().debug_assert();
-    }
-}
-
 pub const VERSION_MESSAGE: &str = concat!(
     "v",
     env!("CARGO_PKG_VERSION"),
@@ -61,4 +50,15 @@ Authors: {author}
 Config directory: {config_dir_path}
 Data directory: {data_dir_path}"
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::CommandFactory;
+
+    #[test]
+    fn cli_definition_is_valid() {
+        Cli::command().debug_assert();
+    }
 }
