@@ -60,12 +60,12 @@ impl Pane for StatusPane {
         } else if self.is_error {
             (
                 Span::raw(self.message.clone()),
-                Style::default().fg(theme::ERROR),
+                Style::default().fg(theme::error()),
             )
         } else {
             (
                 Span::raw(self.message.clone()),
-                Style::default().fg(theme::SUCCESS),
+                Style::default().fg(theme::success()),
             )
         };
 

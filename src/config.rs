@@ -33,6 +33,10 @@ pub struct Config {
     pub keybindings: KeyBindings,
     #[serde(default)]
     pub styles: Styles,
+    /// Global role colours (`accent`, `success`, `error`) applied to the whole
+    /// UI. See [`crate::theme`].
+    #[serde(default)]
+    pub theme: HashMap<String, String>,
 }
 
 lazy_static! {
@@ -472,7 +476,7 @@ fn process_color_string(color_str: &str) -> (String, Modifier) {
     (color, modifiers)
 }
 
-fn parse_color(s: &str) -> Option<Color> {
+pub fn parse_color(s: &str) -> Option<Color> {
     let s = s.trim_start();
     let s = s.trim_end();
     if s.contains("bright color") {

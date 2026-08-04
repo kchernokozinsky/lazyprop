@@ -76,6 +76,8 @@ impl App {
         jar_path: Option<String>,
     ) -> Result<Self> {
         let (action_tx, action_rx) = mpsc::unbounded_channel();
+        let config = Config::new()?;
+        crate::theme::init(&config.theme);
         Ok(Self {
             tick_rate,
             frame_rate,
@@ -89,7 +91,7 @@ impl App {
             should_suspend: false,
             header: HeaderPane::new(),
             footer: FooterPane::new(),
-            config: Config::new()?,
+            config,
             last_tick_key_events: Vec::new(),
             action_tx,
             action_rx,

@@ -26,7 +26,7 @@ impl YamlScreen {
 
 fn focus_border(active: bool) -> (Style, BorderType) {
     if active {
-        (Style::default().fg(theme::ACCENT), BorderType::Thick)
+        (Style::default().fg(theme::accent()), BorderType::Thick)
     } else {
         (Style::default(), BorderType::Plain)
     }
@@ -83,12 +83,15 @@ fn draw_info(frame: &mut Frame, area: Rect, state: &State) {
         Span::styled(" │ ", theme::hint()),
     ];
     if y.dirty() {
-        spans.push(Span::styled("Modified", Style::default().fg(theme::ERROR)));
+        spans.push(Span::styled(
+            "Modified",
+            Style::default().fg(theme::error()),
+        ));
     } else {
         spans.push(Span::styled("Saved", theme::hint()));
     }
     spans.push(Span::styled(" │ Env: ", theme::hint()));
-    spans.push(Span::styled(env, Style::default().fg(theme::ACCENT)));
+    spans.push(Span::styled(env, Style::default().fg(theme::accent())));
     frame.render_widget(Line::from(spans), area);
 }
 
@@ -111,7 +114,7 @@ fn draw_environments(frame: &mut Frame, area: Rect, state: &State) {
         .highlight_symbol("> ")
         .highlight_style(
             Style::default()
-                .fg(theme::ACCENT)
+                .fg(theme::accent())
                 .add_modifier(Modifier::BOLD),
         );
     let mut ls = ListState::default().with_selected(Some(state.cur()));
@@ -156,7 +159,7 @@ fn draw_tree(frame: &mut Frame, area: Rect, state: &State) {
         let mut spans = vec![Span::raw(format!("{indent}{marker}"))];
         let label_style = if i == sel {
             Style::default()
-                .fg(theme::ACCENT)
+                .fg(theme::accent())
                 .add_modifier(Modifier::BOLD)
         } else {
             Style::default()
@@ -215,9 +218,9 @@ fn draw_property(frame: &mut Frame, area: Rect, state: &State) {
 
     if let Some((msg, is_err)) = y.message() {
         let st = if is_err {
-            Style::default().fg(theme::ERROR)
+            Style::default().fg(theme::error())
         } else {
-            Style::default().fg(theme::SUCCESS)
+            Style::default().fg(theme::success())
         };
         lines.push(Line::from(Span::styled(msg.to_string(), st)));
     }
@@ -273,7 +276,7 @@ fn draw_overlays(frame: &mut Frame, area: Rect, state: &State) {
         let block = Block::default()
             .title(title)
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(theme::ACCENT));
+            .border_style(Style::default().fg(theme::accent()));
         let inner = block.inner(popup);
         frame.render_widget(block, popup);
 
@@ -285,7 +288,7 @@ fn draw_overlays(frame: &mut Frame, area: Rect, state: &State) {
                     .iter()
                     .map(|e| {
                         let style = if e.is_dir {
-                            Style::default().fg(theme::ACCENT)
+                            Style::default().fg(theme::accent())
                         } else {
                             Style::default()
                         };
@@ -337,7 +340,7 @@ fn draw_overlays(frame: &mut Frame, area: Rect, state: &State) {
                     .clone()
                     .unwrap_or_else(|| "Enter to open · Esc cancel".to_string());
                 frame.render_widget(
-                    Line::from(Span::styled(msg, Style::default().fg(theme::ERROR))),
+                    Line::from(Span::styled(msg, Style::default().fg(theme::error()))),
                     hint,
                 );
             }
@@ -360,7 +363,7 @@ fn draw_overlays(frame: &mut Frame, area: Rect, state: &State) {
         let block = Block::default()
             .title(" Confirm ")
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(theme::ERROR));
+            .border_style(Style::default().fg(theme::error()));
         frame.render_widget(Paragraph::new(lines).block(block), popup);
     }
 }

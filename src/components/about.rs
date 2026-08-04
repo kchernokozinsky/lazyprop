@@ -81,7 +81,7 @@ impl AboutScreen {
             .map(|l| {
                 Line::from(Span::styled(
                     l.to_string(),
-                    Style::default().fg(theme::ACCENT),
+                    Style::default().fg(theme::accent()),
                 ))
             })
             .collect();
@@ -183,7 +183,7 @@ impl Component for AboutScreen {
         let block = Block::default()
             .title(" About lazyprop ")
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(theme::ACCENT))
+            .border_style(Style::default().fg(theme::accent()))
             // A bit of breathing room between the frame and the text.
             .padding(Padding::new(2, 2, 1, 0));
 

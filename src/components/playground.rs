@@ -25,7 +25,7 @@ impl PlaygroundScreen {
 
 fn active_border(active: bool) -> (Style, BorderType) {
     if active {
-        (Style::default().fg(theme::ACCENT), BorderType::Thick)
+        (Style::default().fg(theme::accent()), BorderType::Thick)
     } else {
         (Style::default(), BorderType::Plain)
     }
@@ -77,7 +77,7 @@ fn draw_result(frame: &mut Frame, area: Rect, p: &Playground, busy: bool) {
         (
             " Result ".to_string(),
             Text::from(Span::styled("Working…", theme::hint_italic())),
-            Style::default().fg(theme::ACCENT),
+            Style::default().fg(theme::accent()),
         )
     } else {
         match &p.result {
@@ -93,12 +93,12 @@ fn draw_result(frame: &mut Frame, area: Rect, p: &Playground, busy: bool) {
                 Ok(output) => (
                     format!(" {} ", res.op.label()),
                     Text::from(output.clone()),
-                    Style::default().fg(theme::SUCCESS),
+                    Style::default().fg(theme::success()),
                 ),
                 Err(err) => (
                     " Error ".to_string(),
                     Text::from(err.clone()),
-                    Style::default().fg(theme::ERROR),
+                    Style::default().fg(theme::error()),
                 ),
             },
         }

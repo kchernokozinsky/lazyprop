@@ -94,7 +94,7 @@ impl TextField {
         }
 
         let cursor_style = Style::default()
-            .fg(theme::ACCENT)
+            .fg(theme::accent())
             .add_modifier(Modifier::REVERSED);
         let before: String = vis[..col.min(vis.len())].iter().collect();
         if col < vis.len() {

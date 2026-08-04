@@ -27,7 +27,7 @@ impl Pane for ResultPane {
             (
                 " Result ".to_string(),
                 Text::from(Span::styled("Working…", theme::hint_italic())),
-                Style::default().fg(theme::ACCENT),
+                Style::default().fg(theme::accent()),
             )
         } else {
             match &state.result {
@@ -49,12 +49,12 @@ impl Pane for ResultPane {
                     Ok(output) => (
                         format!(" {} ", res.op.label()),
                         Text::from(output.clone()),
-                        Style::default().fg(theme::SUCCESS),
+                        Style::default().fg(theme::success()),
                     ),
                     Err(err) => (
                         " Error ".to_string(),
                         Text::from(err.clone()),
-                        Style::default().fg(theme::ERROR),
+                        Style::default().fg(theme::error()),
                     ),
                 },
             }

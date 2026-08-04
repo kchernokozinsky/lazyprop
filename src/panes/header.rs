@@ -16,7 +16,7 @@ impl HeaderPane {
     fn tab(num: &str, label: &str, active: bool) -> [Span<'static>; 3] {
         let name_style = if active {
             Style::default()
-                .fg(theme::ACCENT)
+                .fg(theme::accent())
                 .add_modifier(Modifier::BOLD | Modifier::UNDERLINED)
         } else {
             theme::hint()
@@ -53,7 +53,7 @@ impl Pane for HeaderPane {
         frame.render_widget(Line::from(spans), left);
 
         let title = Line::from(vec![
-            Span::styled("lazyprop ", Style::default().fg(theme::ACCENT)),
+            Span::styled("lazyprop ", Style::default().fg(theme::accent())),
             Span::styled(VERSION_MESSAGE, theme::hint()),
             Span::raw(" "),
         ])

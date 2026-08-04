@@ -44,7 +44,7 @@ pub struct Home {
 
 impl Home {
     pub fn new() -> Result<Self> {
-        let focused_border_style = Style::default().fg(theme::ACCENT);
+        let focused_border_style = Style::default().fg(theme::accent());
         Ok(Self {
             command_tx: None,
             focus: Focus::Envs,
@@ -108,7 +108,7 @@ impl Home {
         if let Some(err) = &form.error {
             lines.push(Line::from(Span::styled(
                 format!("  {err}"),
-                Style::default().fg(theme::ERROR),
+                Style::default().fg(theme::error()),
             )));
         }
         lines.push(Line::from(Span::styled(
@@ -120,7 +120,7 @@ impl Home {
         let block = Block::default()
             .title(form.title())
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(theme::ACCENT));
+            .border_style(Style::default().fg(theme::accent()));
         frame.render_widget(Paragraph::new(lines).block(block), popup);
     }
 
@@ -137,7 +137,7 @@ impl Home {
                 Span::styled(
                     format!("'{name}'"),
                     Style::default()
-                        .fg(theme::ERROR)
+                        .fg(theme::error())
                         .add_modifier(Modifier::BOLD),
                 ),
                 Span::raw("?"),
@@ -148,7 +148,7 @@ impl Home {
         let block = Block::default()
             .title(" Confirm delete ")
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(theme::ERROR));
+            .border_style(Style::default().fg(theme::error()));
         frame.render_widget(Paragraph::new(lines).block(block), popup);
     }
 }
@@ -162,7 +162,7 @@ fn form_text_line(
     let mut spans = vec![
         Span::styled(
             if active { "> " } else { "  " },
-            Style::default().fg(theme::ACCENT),
+            Style::default().fg(theme::accent()),
         ),
         Span::styled(format!("{label:>10}: "), theme::label()),
     ];
@@ -179,7 +179,7 @@ fn form_choice_line(label: &str, value: &str, active: bool) -> Line<'static> {
     Line::from(vec![
         Span::styled(
             if active { "> " } else { "  " },
-            Style::default().fg(theme::ACCENT),
+            Style::default().fg(theme::accent()),
         ),
         Span::styled(format!("{label:>10}: "), theme::label()),
         Span::raw(value),

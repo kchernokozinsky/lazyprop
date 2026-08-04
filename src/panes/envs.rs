@@ -67,9 +67,9 @@ impl Pane for EnvsPane {
         // Bottom title: either the live search box or the "x of y" counter.
         let bottom = if state.searching {
             Line::from(vec![
-                Span::styled(" /", Style::default().fg(theme::ACCENT)),
+                Span::styled(" /", Style::default().fg(theme::accent())),
                 Span::raw(state.search_query.clone().unwrap_or_default()),
-                Span::styled("▌ ", Style::default().fg(theme::ACCENT)),
+                Span::styled("▌ ", Style::default().fg(theme::accent())),
             ])
         } else if state.search_query.is_some() {
             Line::from(Span::styled(
@@ -77,7 +77,7 @@ impl Pane for EnvsPane {
                     " filter: {} ",
                     state.search_query.clone().unwrap_or_default()
                 ),
-                Style::default().fg(theme::ACCENT),
+                Style::default().fg(theme::accent()),
             ))
             .right_aligned()
         } else {
@@ -113,7 +113,7 @@ impl Pane for EnvsPane {
             .highlight_spacing(HighlightSpacing::Always)
             .highlight_style(
                 Style::default()
-                    .fg(theme::ACCENT)
+                    .fg(theme::accent())
                     .add_modifier(Modifier::BOLD),
             );
         let mut list_state = ListState::default().with_selected(state.selected_position());
