@@ -169,5 +169,38 @@ fn yaml_screen_renders_tree() {
     // Encrypted value is masked, not shown in the clear.
     assert!(text.contains("![••••••]"), "encrypted value not masked");
     assert!(!text.contains("![CIPHER]"), "ciphertext should be masked");
+
+    // No modified marker before any edit.
+    assert!(!text.contains('●'), "nothing should be marked modified yet");
+
+    // Edit a scalar; it (and its container) gain the modified marker, and the
+    // tree still renders without panic at a small size.
+    use lazyprop::yaml_editor::document::PathSeg;
+    let host = vec![PathSeg::Key("database".into()), PathSeg::Key("host".into())];
+    assert!(state.yaml.select_path(host), "host node should exist");
+    state.yaml.editing = Some(lazyprop::text_field::TextField::from_text("elsewhere"));
+    state.yaml.apply_edit().expect("apply edit");
+
+    let mut small = Terminal::new(TestBackend::new(60, 12)).unwrap();
+    small
+        .draw(|frame| {
+            screen.draw(frame, frame.area(), &state).unwrap();
+        })
+        .unwrap();
+    let text = buffer_text(&small);
+    assert!(
+        text.contains('●'),
+        "modified marker should appear after edit"
+    );
+
+    // Extremely small sizes must not panic.
+    for (w, h) in [(30, 10), (12, 4), (2, 2)] {
+        let mut tiny = Terminal::new(TestBackend::new(w, h)).unwrap();
+        tiny.draw(|frame| {
+            screen.draw(frame, frame.area(), &state).unwrap();
+        })
+        .unwrap();
+    }
+
     let _ = std::fs::remove_file(&tmp);
 }

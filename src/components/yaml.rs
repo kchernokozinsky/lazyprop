@@ -165,11 +165,28 @@ fn draw_tree(frame: &mut Frame, area: Rect, state: &State) {
                 }
             }
         };
-        let mut spans = vec![Span::raw(format!("{indent}{marker}"))];
+        // A subtle leading marker for a modified property (or a container whose
+        // descendants are modified). Kept in a fixed 2-cell gutter so it never
+        // shifts the tree or gets truncated on narrow terminals. A scalar's
+        // marker is accented; a container's is dimmed (more subtle).
+        let modified = y.is_modified(id);
+        let gutter = if modified {
+            let style = if node.kind == NodeKind::Scalar {
+                Style::default().fg(theme::accent())
+            } else {
+                theme::hint()
+            };
+            Span::styled("● ", style)
+        } else {
+            Span::raw("  ")
+        };
+        let mut spans = vec![gutter, Span::raw(format!("{indent}{marker}"))];
         let label_style = if i == sel {
             Style::default()
                 .fg(theme::accent())
-                .add_modifier(Modifier::BOLD)
+                .add_modifier(Modifier::BOLD | Modifier::UNDERLINED)
+        } else if modified {
+            Style::default().add_modifier(Modifier::BOLD)
         } else {
             Style::default()
         };

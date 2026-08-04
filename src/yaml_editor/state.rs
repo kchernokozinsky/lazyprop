@@ -6,7 +6,7 @@
 //! only to the node that started it (never to whatever is selected when the
 //! background job finishes).
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use crate::hints::YamlSelectionKind;
@@ -96,6 +96,10 @@ pub struct YamlEditorState {
     pub confirm: Option<Confirm>,
     /// A quit/open deferred until the user resolves unsaved changes.
     guard: Option<Guard>,
+    /// Baseline scalar values (by logical path) captured at open / last save,
+    /// used to highlight individually modified properties. Cleared/rebuilt when
+    /// the saved baseline changes.
+    baseline_values: HashMap<Vec<PathSeg>, String>,
     undo_stack: Vec<String>,
     redo_stack: Vec<String>,
     /// Search filter over the tree (node label / path).
@@ -125,6 +129,7 @@ impl Default for YamlEditorState {
             open_modal: None,
             confirm: None,
             guard: None,
+            baseline_values: HashMap::new(),
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
             search: None,
@@ -146,6 +151,39 @@ impl YamlEditorState {
 
     pub fn dirty(&self) -> bool {
         self.is_open() && self.doc.raw() != self.initial_content
+    }
+
+    /// Recompute the per-property baseline from the current saved snapshot
+    /// (`initial_content`). Call whenever that baseline changes (open / save).
+    fn rebuild_baseline(&mut self) {
+        let baseline = Document::parse(&self.initial_content);
+        let mut map = HashMap::new();
+        for (id, node) in baseline.nodes().iter().enumerate() {
+            if node.kind == NodeKind::Scalar {
+                if let Some(v) = baseline.logical_value(id) {
+                    map.insert(node.path.clone(), v);
+                }
+            }
+        }
+        self.baseline_values = map;
+    }
+
+    /// Whether the given node's value differs from the saved baseline. For a
+    /// scalar this compares logical values by its stable path; for a container
+    /// it is true when any descendant scalar is modified.
+    pub fn is_modified(&self, id: usize) -> bool {
+        let node = &self.doc.nodes()[id];
+        match node.kind {
+            NodeKind::Scalar => {
+                let current = self.doc.logical_value(id).unwrap_or_default();
+                match self.baseline_values.get(&node.path) {
+                    Some(base) => *base != current,
+                    // A scalar with no baseline entry (new path) counts as modified.
+                    None => true,
+                }
+            }
+            _ => node.children.iter().any(|&child| self.is_modified(child)),
+        }
     }
 
     pub fn message(&self) -> Option<(&str, bool)> {
@@ -233,6 +271,7 @@ impl YamlEditorState {
         self.disk_hash = Some(hash(&content));
         self.initial_content = content.clone();
         self.doc = Document::parse(&content);
+        self.rebuild_baseline();
         self.file_path = Some(path);
         self.undo_stack.clear();
         self.redo_stack.clear();
@@ -320,6 +359,16 @@ impl YamlEditorState {
     pub fn selected_id(&self) -> Option<usize> {
         let path = self.selected_path.as_ref()?;
         self.doc.find_by_path(path)
+    }
+
+    /// Select the node at `path` if it exists. Returns whether it was found.
+    pub fn select_path(&mut self, path: Vec<PathSeg>) -> bool {
+        if self.doc.find_by_path(&path).is_some() {
+            self.selected_path = Some(path);
+            true
+        } else {
+            false
+        }
     }
 
     pub fn selected_index(&self) -> Option<usize> {
@@ -665,6 +714,8 @@ impl YamlEditorState {
         atomic_write(&path, self.doc.raw())?;
         self.initial_content = self.doc.raw().to_string();
         self.disk_hash = Some(hash(self.doc.raw()));
+        // The saved content is the new baseline: clear per-property highlights.
+        self.rebuild_baseline();
         self.set_msg("Saved.", false);
         Ok(())
     }
@@ -1049,6 +1100,142 @@ mod tests {
         assert_eq!(st.guard(), Some(&Guard::Quit));
         st.guard_cancel();
         assert!(st.guard().is_none());
+    }
+
+    fn modified_at(st: &YamlEditorState, path: &[PathSeg]) -> bool {
+        let id = st.doc().find_by_path(path).expect("node exists");
+        st.is_modified(id)
+    }
+
+    fn edit_value(st: &mut YamlEditorState, path: Vec<PathSeg>, value: &str) {
+        st.selected_path = Some(path);
+        st.editing = Some(TextField::from_text(value));
+        st.apply_edit().unwrap();
+    }
+
+    #[test]
+    fn manual_edit_marks_modified_and_revert_clears_it() {
+        let (mut st, _t) = open_sample();
+        let pw = vec![
+            PathSeg::Key("database".into()),
+            PathSeg::Key("password".into()),
+        ];
+        assert!(!modified_at(&st, &pw));
+        edit_value(&mut st, pw.clone(), "new-secret");
+        assert!(modified_at(&st, &pw));
+        // Changing it back to the baseline clears the highlight.
+        edit_value(&mut st, pw.clone(), "secret");
+        assert!(!modified_at(&st, &pw));
+    }
+
+    #[test]
+    fn encrypt_and_decrypt_mark_modified() {
+        let (mut st, _t) = open_sample();
+        let pw = vec![
+            PathSeg::Key("database".into()),
+            PathSeg::Key("password".into()),
+        ];
+        st.selected_path = Some(pw.clone());
+        st.begin_crypto(Operation::Encrypt).unwrap();
+        st.finish_crypto(Ok("CIPHER".to_string()));
+        assert!(modified_at(&st, &pw));
+        // Decrypting back to the original plaintext clears the highlight.
+        st.selected_path = Some(pw.clone());
+        st.begin_crypto(Operation::Decrypt).unwrap();
+        st.finish_crypto(Ok("secret".to_string()));
+        assert!(!modified_at(&st, &pw));
+    }
+
+    #[test]
+    fn same_name_different_paths_tracked_independently() {
+        let src = "\
+services:
+  - name: a
+    password: p1
+  - name: b
+    password: p2
+";
+        let tmp = tempfile_path::Temp::new(src);
+        let mut st = YamlEditorState::default();
+        st.open_path(tmp.path.to_str().unwrap()).unwrap();
+        let p0 = vec![
+            PathSeg::Key("services".into()),
+            PathSeg::Index(0),
+            PathSeg::Key("password".into()),
+        ];
+        let p1 = vec![
+            PathSeg::Key("services".into()),
+            PathSeg::Index(1),
+            PathSeg::Key("password".into()),
+        ];
+        edit_value(&mut st, p0.clone(), "changed");
+        assert!(modified_at(&st, &p0));
+        assert!(!modified_at(&st, &p1));
+    }
+
+    #[test]
+    fn save_clears_property_highlights() {
+        let (mut st, _t) = open_sample();
+        let pw = vec![
+            PathSeg::Key("database".into()),
+            PathSeg::Key("password".into()),
+        ];
+        edit_value(&mut st, pw.clone(), "changed");
+        assert!(modified_at(&st, &pw));
+        st.save().unwrap();
+        assert!(!modified_at(&st, &pw));
+        assert!(!st.dirty());
+    }
+
+    #[test]
+    fn restore_clears_property_highlights() {
+        let (mut st, _t) = open_sample();
+        let pw = vec![
+            PathSeg::Key("database".into()),
+            PathSeg::Key("password".into()),
+        ];
+        edit_value(&mut st, pw.clone(), "changed");
+        assert!(modified_at(&st, &pw));
+        st.restore();
+        assert!(!modified_at(&st, &pw));
+        assert!(!st.dirty());
+    }
+
+    #[test]
+    fn container_flags_modified_descendant() {
+        let (mut st, _t) = open_sample();
+        let db = vec![PathSeg::Key("database".into())];
+        assert!(!modified_at(&st, &db));
+        edit_value(
+            &mut st,
+            vec![
+                PathSeg::Key("database".into()),
+                PathSeg::Key("password".into()),
+            ],
+            "changed",
+        );
+        // The container reports a modified descendant.
+        assert!(modified_at(&st, &db));
+    }
+
+    #[test]
+    fn stale_crypto_does_not_mark_unrelated_property() {
+        let (mut st, _t) = open_sample();
+        let pw = vec![
+            PathSeg::Key("database".into()),
+            PathSeg::Key("password".into()),
+        ];
+        let user = vec![
+            PathSeg::Key("database".into()),
+            PathSeg::Key("username".into()),
+        ];
+        st.selected_path = Some(pw.clone());
+        st.begin_crypto(Operation::Encrypt).unwrap();
+        // The value changes underneath the running op; the result is stale.
+        edit_value(&mut st, pw.clone(), "rotated");
+        st.finish_crypto(Ok("CIPHER".to_string()));
+        // username was never touched and must not be flagged.
+        assert!(!modified_at(&st, &user));
     }
 
     // Minimal temp-file helper (avoids a new dependency).
