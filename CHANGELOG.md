@@ -6,6 +6,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- YAML editor: a manually edited scalar value is now also written as a quoted
+  string, consistent with encrypt/decrypt results.
+
 ## [0.2.1] - 2026-08-04
 
 ### Changed

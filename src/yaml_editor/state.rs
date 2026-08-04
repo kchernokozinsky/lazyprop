@@ -494,11 +494,13 @@ impl YamlEditorState {
         self.editing = None;
     }
 
-    /// Apply the in-progress manual edit to the selected scalar.
+    /// Apply the in-progress manual edit to the selected scalar. The value is
+    /// written as a quoted string, matching how encrypt/decrypt results are
+    /// stored.
     pub fn apply_edit(&mut self) -> Result<(), String> {
         let field = self.editing.take().ok_or("Not editing")?;
         let id = self.selected_id().ok_or("Nothing selected")?;
-        let new_source = document::serialize_scalar(&field.value());
+        let new_source = document::serialize_scalar_quoted(&field.value());
         let text = self.doc.replace_scalar_source(id, &new_source)?;
         self.snapshot();
         self.doc = Document::parse(&text);
@@ -960,7 +962,7 @@ mod tests {
         st.editing = Some(TextField::from_text("changed"));
         st.apply_edit().unwrap();
         assert!(st.dirty());
-        assert!(st.doc().raw().contains("password: changed"));
+        assert!(st.doc().raw().contains("password: \"changed\""));
         st.restore();
         assert!(!st.dirty());
         assert!(st.doc().raw().contains("password: secret"));
@@ -995,7 +997,7 @@ mod tests {
         st.editing = Some(TextField::from_text("rotated"));
         st.apply_edit().unwrap();
         st.finish_crypto(Ok("CIPHER".to_string()));
-        assert!(st.doc().raw().contains("password: rotated"));
+        assert!(st.doc().raw().contains("password: \"rotated\""));
         assert!(!st.doc().raw().contains("CIPHER"));
         assert!(st.message().unwrap().1); // error/ignored message
     }
@@ -1029,7 +1031,7 @@ mod tests {
         st.save().unwrap();
         assert!(!st.dirty());
         let on_disk = std::fs::read_to_string(&tmp.path).unwrap();
-        assert!(on_disk.contains("password: newpass"));
+        assert!(on_disk.contains("password: \"newpass\""));
     }
 
     #[test]
@@ -1041,12 +1043,12 @@ mod tests {
         ]);
         st.editing = Some(TextField::from_text("changed"));
         st.apply_edit().unwrap();
-        assert!(st.doc().raw().contains("password: changed"));
+        assert!(st.doc().raw().contains("password: \"changed\""));
         st.undo();
         assert!(st.doc().raw().contains("password: secret"));
-        assert!(!st.doc().raw().contains("password: changed"));
+        assert!(!st.doc().raw().contains("password: \"changed\""));
         st.redo();
-        assert!(st.doc().raw().contains("password: changed"));
+        assert!(st.doc().raw().contains("password: \"changed\""));
     }
 
     #[test]
