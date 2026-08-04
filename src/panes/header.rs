@@ -4,22 +4,11 @@ use ratatui::prelude::*;
 use crate::{app::Mode, cli::VERSION_MESSAGE, panes::Pane, state::State, theme};
 
 #[derive(Default)]
-pub struct HeaderPane {
-    /// Clickable tab regions from the last draw: `(mode, row, start_col, end_col)`.
-    tabs: Vec<(Mode, u16, u16, u16)>,
-}
+pub struct HeaderPane {}
 
 impl HeaderPane {
     pub fn new() -> Self {
-        Self { tabs: Vec::new() }
-    }
-
-    /// The screen whose tab covers `(col, row)`, if any (for mouse clicks).
-    pub fn tab_at(&self, col: u16, row: u16) -> Option<Mode> {
-        self.tabs
-            .iter()
-            .find(|(_, r, start, end)| *r == row && col >= *start && col < *end)
-            .map(|(mode, _, _, _)| *mode)
+        Self {}
     }
 
     /// A tab as a single span: the screen name. The active screen is accented,
@@ -50,7 +39,6 @@ impl Pane for HeaderPane {
         let [left, right] =
             Layout::horizontal([Constraint::Fill(1), Constraint::Length(title_width)]).areas(area);
 
-        let gap = || Span::raw("   ");
         let tabs = [
             (Mode::Main, "Main"),
             (Mode::Playground, "Playground"),
@@ -58,18 +46,11 @@ impl Pane for HeaderPane {
             (Mode::About, "About"),
         ];
         let mut spans = vec![Span::raw(" ")];
-        // Track each tab's clickable column range for mouse hit-testing.
-        self.tabs.clear();
-        let mut col = left.x + 1; // leading space
         for (i, (mode, label)) in tabs.iter().enumerate() {
             if i > 0 {
-                spans.push(gap());
-                col += 3;
+                spans.push(Span::raw("   "));
             }
             spans.push(Self::tab(label, state.mode == *mode));
-            let width = label.len() as u16;
-            self.tabs.push((*mode, left.y, col, col + width));
-            col += width;
         }
         frame.render_widget(Line::from(spans), left);
 

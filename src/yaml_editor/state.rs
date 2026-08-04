@@ -576,9 +576,13 @@ impl YamlEditorState {
             self.set_msg("Result ignored: the value changed while running.", true);
             return;
         }
+        // Always write the result as a quoted string: the cipher wrapper needs
+        // quoting anyway, and a decrypted value is kept quoted for consistency.
         let new_source = match pending.op {
-            Operation::Encrypt => document::serialize_scalar(&document::wrap_cipher(&output)),
-            Operation::Decrypt => document::serialize_scalar(&output),
+            Operation::Encrypt => {
+                document::serialize_scalar_quoted(&document::wrap_cipher(&output))
+            }
+            Operation::Decrypt => document::serialize_scalar_quoted(&output),
         };
         match self.doc.replace_scalar_source(id, &new_source) {
             Ok(text) => {
@@ -1009,7 +1013,8 @@ mod tests {
         let sent = st.begin_crypto(Operation::Decrypt).unwrap();
         assert_eq!(sent, "CIPHER");
         st.finish_crypto(Ok("secret".to_string()));
-        assert!(st.doc().raw().contains("password: secret"));
+        // Decrypt results are written as a quoted string.
+        assert!(st.doc().raw().contains("password: \"secret\""));
     }
 
     #[test]

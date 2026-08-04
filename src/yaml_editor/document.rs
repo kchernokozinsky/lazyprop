@@ -194,22 +194,34 @@ pub fn wrap_cipher(cipher: &str) -> String {
 /// only when necessary so plain values stay plain.
 pub fn serialize_scalar(value: &str) -> String {
     if needs_double_quoting(value) {
-        let mut out = String::with_capacity(value.len() + 2);
-        out.push('"');
-        for c in value.chars() {
-            match c {
-                '"' => out.push_str("\\\""),
-                '\\' => out.push_str("\\\\"),
-                '\n' => out.push_str("\\n"),
-                '\t' => out.push_str("\\t"),
-                _ => out.push(c),
-            }
-        }
-        out.push('"');
-        out
+        double_quote(value)
     } else {
         value.to_string()
     }
+}
+
+/// Serialize a logical string value as a **double-quoted** YAML scalar token,
+/// regardless of whether quoting is strictly required. Used for encrypt/decrypt
+/// results so a secure property is always written as a quoted string.
+pub fn serialize_scalar_quoted(value: &str) -> String {
+    double_quote(value)
+}
+
+/// Wrap `value` in double quotes, escaping the characters YAML requires.
+fn double_quote(value: &str) -> String {
+    let mut out = String::with_capacity(value.len() + 2);
+    out.push('"');
+    for c in value.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\t' => out.push_str("\\t"),
+            _ => out.push(c),
+        }
+    }
+    out.push('"');
+    out
 }
 
 fn needs_double_quoting(v: &str) -> bool {
@@ -752,5 +764,13 @@ servers:
         assert_eq!(serialize_scalar("8081"), "\"8081\"");
         assert_eq!(serialize_scalar("true"), "\"true\"");
         assert_eq!(serialize_scalar("plainword"), "plainword");
+    }
+
+    #[test]
+    fn quoted_serializer_always_quotes() {
+        // Even a plain-safe value is quoted, and quotes are escaped.
+        assert_eq!(serialize_scalar_quoted("secret"), "\"secret\"");
+        assert_eq!(serialize_scalar_quoted("![CIPHER]"), "\"![CIPHER]\"");
+        assert_eq!(serialize_scalar_quoted("a\"b"), "\"a\\\"b\"");
     }
 }

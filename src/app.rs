@@ -1,5 +1,5 @@
 use color_eyre::Result;
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     layout::{Constraint, Layout},
     prelude::Rect,
@@ -109,8 +109,9 @@ impl App {
     }
 
     pub async fn run(&mut self) -> Result<()> {
+        // Mouse capture stays off so the terminal's own text selection keeps
+        // working. All navigation has keyboard equivalents.
         let mut tui = Tui::new()?
-            .mouse(true)
             .tick_rate(self.tick_rate)
             .frame_rate(self.frame_rate);
         tui.enter()?;
@@ -162,7 +163,6 @@ impl App {
             Event::Render => action_tx.send(Action::Render)?,
             Event::Resize(x, y) => action_tx.send(Action::Resize(x, y))?,
             Event::Key(key) => self.handle_key_event(key)?,
-            Event::Mouse(mouse) => self.handle_mouse_event(mouse)?,
             _ => {}
         }
         let active = self.state.mode.component_index();
@@ -215,33 +215,6 @@ impl App {
             }
         }
         Ok(())
-    }
-
-    /// Minimal mouse support: the scroll wheel drives the active screen's
-    /// up/down navigation, and clicking a header tab switches screens.
-    fn handle_mouse_event(&mut self, mouse: MouseEvent) -> Result<()> {
-        let key = |code| KeyEvent::new(code, KeyModifiers::empty());
-        match mouse.kind {
-            MouseEventKind::ScrollDown => self.handle_key_event(key(KeyCode::Down)),
-            MouseEventKind::ScrollUp => self.handle_key_event(key(KeyCode::Up)),
-            MouseEventKind::Down(MouseButton::Left) => {
-                // Don't yank a modal/form out from under the user with a click.
-                if self.state.form.is_some() || self.state.pending_delete.is_some() {
-                    return Ok(());
-                }
-                if let Some(mode) = self.header.tab_at(mouse.column, mouse.row) {
-                    let action = match mode {
-                        Mode::Main => Action::GoMain,
-                        Mode::Playground => Action::GoPlayground,
-                        Mode::Yaml => Action::GoYaml,
-                        Mode::About => Action::GoAbout,
-                    };
-                    self.action_tx.send(action)?;
-                }
-                Ok(())
-            }
-            _ => Ok(()),
-        }
     }
 
     fn handle_input_key_event(&mut self, key: KeyEvent) -> Result<()> {

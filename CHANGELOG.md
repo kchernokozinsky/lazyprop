@@ -6,6 +6,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- YAML editor: encrypt and decrypt results are now always written as a
+  **quoted** string (e.g. `password: "secret"`), for consistency with the
+  quoted cipher wrapper.
+
+### Removed
+
+- Mouse capture is disabled so the terminal's own text selection works
+  everywhere. This removes the 0.2.0 scroll-wheel navigation and clickable
+  header tabs; all navigation has keyboard equivalents (`w`/`s`, `h`/`l`,
+  `1`–`4`).
+
 ## [0.2.0] - 2026-08-04
 
 ### Added
