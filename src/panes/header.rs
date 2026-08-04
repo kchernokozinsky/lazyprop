@@ -48,6 +48,8 @@ impl Pane for HeaderPane {
         spans.extend(Self::tab("2", "Playground", state.mode == Mode::Playground));
         spans.push(gap());
         spans.extend(Self::tab("3", "About", state.mode == Mode::About));
+        spans.push(gap());
+        spans.extend(Self::tab("4", "YAML", state.mode == Mode::Yaml));
         frame.render_widget(Line::from(spans), left);
 
         let title = Line::from(vec![

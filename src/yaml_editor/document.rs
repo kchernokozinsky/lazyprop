@@ -313,10 +313,20 @@ fn parse_block(
             continue;
         }
         if is_seq {
-            let id = parse_seq_item(raw, lines, cursor, indent, parent_path, parent, seq_index, nodes);
+            let id = parse_seq_item(
+                raw,
+                lines,
+                cursor,
+                indent,
+                parent_path,
+                parent,
+                seq_index,
+                nodes,
+            );
             ids.push(id);
             seq_index += 1;
-        } else if let Some(id) = parse_map_entry(raw, lines, cursor, indent, parent_path, parent, nodes)
+        } else if let Some(id) =
+            parse_map_entry(raw, lines, cursor, indent, parent_path, parent, nodes)
         {
             ids.push(id);
         } else {
@@ -326,6 +336,7 @@ fn parse_block(
     ids
 }
 
+#[allow(clippy::too_many_arguments)]
 fn parse_seq_item(
     raw: &str,
     lines: &[SigLine<'_>],
@@ -368,7 +379,15 @@ fn parse_seq_item(
         // `- key: ...`: first key sits on the dash line at column `item_col`.
         let mut children = Vec::new();
         if let Some(cid) = parse_map_entry_line(
-            raw, lines, cursor, item_col, value_off, rest_trimmed, &path, Some(id), nodes,
+            raw,
+            lines,
+            cursor,
+            item_col,
+            value_off,
+            rest_trimmed,
+            &path,
+            Some(id),
+            nodes,
         ) {
             children.push(cid);
         }
@@ -437,7 +456,8 @@ fn parse_map_entry_line(
     if value.is_empty() {
         *cursor += 1;
         if let Some(ci) = lines.get(*cursor).map(|l| l.indent) {
-            let nested_seq = ci == indent && lines.get(*cursor).is_some_and(|l| is_seq_marker(l.text));
+            let nested_seq =
+                ci == indent && lines.get(*cursor).is_some_and(|l| is_seq_marker(l.text));
             if ci > indent || nested_seq {
                 let children = parse_block(raw, lines, cursor, ci, &path, Some(id), nodes);
                 finish_container(nodes, id, children);
@@ -548,7 +568,10 @@ fn scalar_span(part_start: usize, part: &str) -> ((usize, usize), ScalarStyle) {
             return ((start, start + end_rel), ScalarStyle::SingleQuoted);
         }
     } else if body.starts_with(['{', '[', '|', '>', '&', '*', '!']) {
-        return ((start, start + body.trim_end().len()), ScalarStyle::Unsupported);
+        return (
+            (start, start + body.trim_end().len()),
+            ScalarStyle::Unsupported,
+        );
     }
 
     // Plain scalar: ends before a trailing " #" comment.
@@ -613,7 +636,10 @@ servers:
     #[test]
     fn parses_nested_mappings() {
         let doc = Document::parse(SAMPLE);
-        assert_eq!(doc.node(nid(&doc, "database")).unwrap().kind, NodeKind::Mapping);
+        assert_eq!(
+            doc.node(nid(&doc, "database")).unwrap().kind,
+            NodeKind::Mapping
+        );
         assert_eq!(
             doc.node(nid(&doc, "database.credentials")).unwrap().kind,
             NodeKind::Mapping
@@ -626,8 +652,14 @@ servers:
     #[test]
     fn parses_sequences_and_indexed_paths() {
         let doc = Document::parse(SAMPLE);
-        assert_eq!(doc.node(nid(&doc, "servers")).unwrap().kind, NodeKind::Sequence);
-        assert_eq!(doc.value_source(nid(&doc, "servers[0].host")), Some("server-one"));
+        assert_eq!(
+            doc.node(nid(&doc, "servers")).unwrap().kind,
+            NodeKind::Sequence
+        );
+        assert_eq!(
+            doc.value_source(nid(&doc, "servers[0].host")),
+            Some("server-one")
+        );
         assert_eq!(doc.value_source(nid(&doc, "servers[0].port")), Some("8081"));
     }
 
@@ -653,7 +685,10 @@ servers:
         let doc = Document::parse("key: \"old value\"\nother: 1\n");
         let k = nid(&doc, "key");
         assert_eq!(doc.value_source(k), Some("\"old value\""));
-        assert_eq!(doc.replace_scalar_source(k, "new").unwrap(), "key: new\nother: 1\n");
+        assert_eq!(
+            doc.replace_scalar_source(k, "new").unwrap(),
+            "key: new\nother: 1\n"
+        );
     }
 
     #[test]
@@ -684,7 +719,9 @@ servers:
     fn preserves_comments_and_blank_lines() {
         let src = "# top comment\ndb:\n  pass: secret  # inline\n\nother: 1\n";
         let doc = Document::parse(src);
-        let out = doc.replace_scalar_source(nid(&doc, "db.pass"), "x").unwrap();
+        let out = doc
+            .replace_scalar_source(nid(&doc, "db.pass"), "x")
+            .unwrap();
         assert!(out.contains("# top comment"));
         assert!(out.contains("pass: x  # inline"));
         assert!(out.contains("\n\nother: 1"));
@@ -699,8 +736,14 @@ servers:
 
     #[test]
     fn logical_value_of_quoted() {
-        assert_eq!(scalar_logical_value("\"![x]\"", ScalarStyle::DoubleQuoted), "![x]");
-        assert_eq!(scalar_logical_value("'it''s'", ScalarStyle::SingleQuoted), "it's");
+        assert_eq!(
+            scalar_logical_value("\"![x]\"", ScalarStyle::DoubleQuoted),
+            "![x]"
+        );
+        assert_eq!(
+            scalar_logical_value("'it''s'", ScalarStyle::SingleQuoted),
+            "it's"
+        );
         assert_eq!(scalar_logical_value("plain", ScalarStyle::Plain), "plain");
     }
 

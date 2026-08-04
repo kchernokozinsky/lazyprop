@@ -11,14 +11,48 @@ use std::path::{Path, PathBuf};
 
 use crate::state::Operation;
 use crate::text_field::TextField;
-use crate::yaml_editor::document::{
-    self, Document, NodeKind, PathSeg, ScalarStyle,
-};
+use crate::yaml_editor::document::{self, Document, NodeKind, PathSeg, ScalarStyle};
+use crate::yaml_editor::file_browser::FileBrowser;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum YamlFocus {
     Environments,
     Tree,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OpenMode {
+    Browse,
+    Path,
+}
+
+/// The "Open YAML file" modal, offering browse and path-entry modes.
+#[derive(Debug)]
+pub struct OpenModal {
+    pub mode: OpenMode,
+    pub path_input: TextField,
+    pub browser: FileBrowser,
+    pub error: Option<String>,
+}
+
+impl Default for OpenModal {
+    fn default() -> Self {
+        Self {
+            mode: OpenMode::Browse,
+            path_input: TextField::default(),
+            browser: FileBrowser::default(),
+            error: None,
+        }
+    }
+}
+
+/// A pending destructive action awaiting confirmation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Confirm {
+    /// Restore the document, discarding unsaved changes.
+    Restore,
+    /// Overwrite a file that changed on disk since it was opened.
+    OverwriteExternal,
 }
 
 /// A crypto operation in flight, targeting a specific node by its stable path.
@@ -31,6 +65,7 @@ struct Pending {
     original_source: String,
 }
 
+#[derive(Debug)]
 pub struct YamlEditorState {
     pub file_path: Option<PathBuf>,
     initial_content: String,
@@ -46,6 +81,8 @@ pub struct YamlEditorState {
     /// Content hash of the file on disk at open / last save, for detecting
     /// external modification before overwriting.
     disk_hash: Option<u64>,
+    pub open_modal: Option<OpenModal>,
+    pub confirm: Option<Confirm>,
 }
 
 impl Default for YamlEditorState {
@@ -63,6 +100,8 @@ impl Default for YamlEditorState {
             message: None,
             pending: None,
             disk_hash: None,
+            open_modal: None,
+            confirm: None,
         }
     }
 }
@@ -86,6 +125,13 @@ impl YamlEditorState {
 
     fn set_msg(&mut self, text: impl Into<String>, is_error: bool) {
         self.message = Some((text.into(), is_error));
+    }
+
+    /// Report a message (e.g. a pre-flight crypto error) and clear the busy
+    /// flag. Never include secret values in `text`.
+    pub fn report(&mut self, text: impl Into<String>, is_error: bool) {
+        self.crypto_in_progress = false;
+        self.set_msg(text, is_error);
     }
 
     // --- opening -----------------------------------------------------------
@@ -124,7 +170,10 @@ impl YamlEditorState {
                 }
             }
         }
-        self.selected_path = self.visible().first().map(|&id| self.doc.nodes()[id].path.clone());
+        self.selected_path = self
+            .visible()
+            .first()
+            .map(|&id| self.doc.nodes()[id].path.clone());
         self.editing = None;
         self.pending = None;
         self.set_msg(
@@ -221,7 +270,9 @@ impl YamlEditorState {
     }
 
     pub fn selected_path_string(&self) -> Option<String> {
-        self.selected_path.as_ref().map(|p| document::path_to_string(p))
+        self.selected_path
+            .as_ref()
+            .map(|p| document::path_to_string(p))
     }
 
     /// (source, style, kind) of the selected node.
@@ -358,7 +409,9 @@ impl YamlEditorState {
     /// Whether the file changed on disk since it was opened or last saved.
     pub fn externally_modified(&self) -> bool {
         match (&self.file_path, self.disk_hash) {
-            (Some(p), Some(h)) => std::fs::read_to_string(p).map(|c| hash(&c) != h).unwrap_or(false),
+            (Some(p), Some(h)) => std::fs::read_to_string(p)
+                .map(|c| hash(&c) != h)
+                .unwrap_or(false),
             _ => false,
         }
     }
@@ -382,9 +435,91 @@ impl YamlEditorState {
         self.pending = None;
         // Keep the selection valid.
         if self.selected_id().is_none() {
-            self.selected_path = self.visible().first().map(|&id| self.doc.nodes()[id].path.clone());
+            self.selected_path = self
+                .visible()
+                .first()
+                .map(|&id| self.doc.nodes()[id].path.clone());
         }
         self.set_msg("Restored to the initially opened content.", false);
+    }
+
+    // --- open modal & confirmations ---------------------------------------
+
+    pub fn open_dialog(&mut self) {
+        self.open_modal = Some(OpenModal::default());
+    }
+
+    pub fn close_dialog(&mut self) {
+        self.open_modal = None;
+    }
+
+    /// Handle activation inside the open modal (Enter). Returns true when a file
+    /// was opened (so the modal can close).
+    pub fn modal_activate(&mut self) -> bool {
+        let Some(modal) = self.open_modal.as_mut() else {
+            return false;
+        };
+        let candidate = match modal.mode {
+            OpenMode::Browse => modal.browser.activate(),
+            OpenMode::Path => Some(std::path::PathBuf::from(modal.path_input.value())),
+        };
+        let Some(path) = candidate else {
+            return false; // navigated into a directory
+        };
+        let input = path.to_string_lossy().to_string();
+        match self.open_path(&input) {
+            Ok(()) => {
+                self.open_modal = None;
+                true
+            }
+            Err(e) => {
+                if let Some(m) = self.open_modal.as_mut() {
+                    m.error = Some(e);
+                }
+                false
+            }
+        }
+    }
+
+    /// Restore, asking for confirmation first if there are unsaved changes.
+    pub fn request_restore(&mut self) {
+        if self.dirty() {
+            self.confirm = Some(Confirm::Restore);
+        } else {
+            self.restore();
+        }
+    }
+
+    /// Save, asking to confirm if the file changed on disk since it was opened.
+    pub fn request_save(&mut self) {
+        if !self.is_open() {
+            self.set_msg("No file open.", true);
+            return;
+        }
+        if self.externally_modified() {
+            self.confirm = Some(Confirm::OverwriteExternal);
+            self.set_msg("File changed on disk. Confirm to overwrite.", true);
+            return;
+        }
+        if let Err(e) = self.save() {
+            self.set_msg(format!("Save failed: {e}"), true);
+        }
+    }
+
+    pub fn confirm_yes(&mut self) {
+        match self.confirm.take() {
+            Some(Confirm::Restore) => self.restore(),
+            Some(Confirm::OverwriteExternal) => {
+                if let Err(e) = self.save() {
+                    self.set_msg(format!("Save failed: {e}"), true);
+                }
+            }
+            None => {}
+        }
+    }
+
+    pub fn confirm_no(&mut self) {
+        self.confirm = None;
     }
 }
 
@@ -433,7 +568,10 @@ fn atomic_write(path: &Path, content: &str) -> Result<(), String> {
     {
         use std::os::unix::fs::PermissionsExt;
         if let Ok(meta) = std::fs::metadata(path) {
-            let _ = std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(meta.permissions().mode()));
+            let _ = std::fs::set_permissions(
+                &tmp,
+                std::fs::Permissions::from_mode(meta.permissions().mode()),
+            );
         }
     }
     std::fs::rename(&tmp, path).map_err(|e| {
@@ -523,7 +661,10 @@ mod tests {
         let tmp = tempfile_path::Temp::new(src);
         let mut st = YamlEditorState::default();
         st.open_path(tmp.path.to_str().unwrap()).unwrap();
-        st.selected_path = Some(vec![PathSeg::Key("db".into()), PathSeg::Key("password".into())]);
+        st.selected_path = Some(vec![
+            PathSeg::Key("db".into()),
+            PathSeg::Key("password".into()),
+        ]);
         let sent = st.begin_crypto(Operation::Decrypt).unwrap();
         assert_eq!(sent, "CIPHER");
         st.finish_crypto(Ok("secret".to_string()));

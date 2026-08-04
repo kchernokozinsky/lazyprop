@@ -40,6 +40,7 @@ impl Pane for FooterPane {
             ("x", "delete"),
             ("r", "reveal"),
             ("w/s", "move"),
+            ("4", "yaml"),
             ("q", "quit"),
         ];
 
@@ -65,10 +66,36 @@ impl Pane for FooterPane {
                 ("1", "main"),
                 ("2", "playground"),
                 ("3", "about"),
+                ("4", "yaml"),
                 ("h/l", "switch"),
                 ("w/s", "scroll"),
                 ("q", "quit"),
             ],
+            Mode::Yaml => {
+                if state.yaml.editing.is_some() {
+                    &[("type", "value"), ("Enter", "apply"), ("Esc", "cancel")]
+                } else if state.yaml.open_modal.is_some() {
+                    &[
+                        ("↑↓", "move"),
+                        ("Enter", "open"),
+                        ("Tab", "mode"),
+                        ("Esc", "cancel"),
+                    ]
+                } else {
+                    &[
+                        ("Ctrl-o", "open"),
+                        ("w/s", "move"),
+                        ("←/→", "fold"),
+                        ("Enter", "edit"),
+                        ("e", "encrypt"),
+                        ("d", "decrypt"),
+                        ("Ctrl-s", "save"),
+                        ("Ctrl-r", "restore"),
+                        ("r", "reveal"),
+                        ("Tab", "focus"),
+                    ]
+                }
+            }
         };
 
         frame.render_widget(Line::from(fit_hints(hints, area.width as usize)), area);

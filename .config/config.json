@@ -25,6 +25,7 @@
       "<1>": "GoMain",
       "<2>": "GoPlayground",
       "<3>": "GoAbout",
+      "<4>": "GoYaml",
       "<h>": "PrevScreen",
       "<l>": "NextScreen",
       "<?>": "GoAbout"
@@ -41,6 +42,7 @@
       "<1>": "GoMain",
       "<2>": "GoPlayground",
       "<3>": "GoAbout",
+      "<4>": "GoYaml",
       "<h>": "PrevScreen",
       "<l>": "NextScreen",
       "<Esc>": "GoMain",

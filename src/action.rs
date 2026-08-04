@@ -20,6 +20,8 @@ pub enum Action {
     GoPlayground,
     /// Switch to the about / help screen.
     GoAbout,
+    /// Switch to the YAML editor screen.
+    GoYaml,
     /// Switch to the previous screen (wrapping).
     PrevScreen,
     /// Switch to the next screen (wrapping).
@@ -95,6 +97,7 @@ impl Action {
             Action::GoMain => "Go to Main screen",
             Action::GoPlayground => "Go to Playground screen",
             Action::GoAbout => "Go to About screen",
+            Action::GoYaml => "Go to YAML editor screen",
             Action::PrevScreen => "Previous screen",
             Action::NextScreen => "Next screen",
             _ => "",

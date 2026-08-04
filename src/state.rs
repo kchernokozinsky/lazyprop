@@ -6,6 +6,7 @@ use crate::{
     dencrypt::{decrypt, encrypt},
     environment::{Algorithm, Environment, Environments, State as CipherMode},
     text_field::TextField,
+    yaml_editor::state::YamlEditorState,
 };
 use color_eyre::Result;
 use serde::{Deserialize, Serialize};
@@ -24,6 +25,9 @@ pub enum Operation {
 pub enum CryptoTarget {
     Main,
     Playground,
+    /// A YAML-screen node; the specific node is tracked in the YAML editor
+    /// state and applied there by stable path.
+    Yaml,
 }
 
 /// Run an encrypt/decrypt off the UI thread (the JVM start-up is slow) and
@@ -393,6 +397,8 @@ pub struct State {
     pub pending_delete: Option<usize>,
     /// State of the playground (no-environment) screen.
     pub playground: Playground,
+    /// State of the YAML editor screen.
+    pub yaml: YamlEditorState,
 }
 
 impl State {
@@ -417,7 +423,41 @@ impl State {
             form: None,
             pending_delete: None,
             playground: Playground::default(),
+            yaml: YamlEditorState::default(),
         })
+    }
+
+    /// Start an encrypt/decrypt for the selected YAML scalar, using the
+    /// selected environment, off the UI thread.
+    pub fn yaml_begin_crypto(&mut self, tx: UnboundedSender<Action>, op: Operation) {
+        if self.busy || self.yaml.crypto_in_progress {
+            return;
+        }
+        let Some(env) = self.selected_env().cloned() else {
+            self.yaml.report("No environment selected.", true);
+            return;
+        };
+        if !env.algorithm.supports_modes() {
+            self.yaml.report(
+                format!("{:?} is not supported by the tool.", env.algorithm),
+                true,
+            );
+            return;
+        }
+        match self.yaml.begin_crypto(op) {
+            Ok(value) => {
+                self.busy = true;
+                spawn_crypto(
+                    tx,
+                    CryptoTarget::Yaml,
+                    op,
+                    self.jar_path.clone(),
+                    env,
+                    value,
+                );
+            }
+            Err(e) => self.yaml.report(e, true),
+        }
     }
 
     pub fn cur(&self) -> usize {
@@ -684,10 +724,15 @@ impl State {
         outcome: std::result::Result<String, String>,
     ) {
         self.busy = false;
+        if target == CryptoTarget::Yaml {
+            self.yaml.finish_crypto(outcome);
+            return;
+        }
         let result = Some(CryptoResult { op, outcome });
         match target {
             CryptoTarget::Main => self.result = result,
             CryptoTarget::Playground => self.playground.result = result,
+            CryptoTarget::Yaml => unreachable!(),
         }
     }
 
@@ -696,6 +741,7 @@ impl State {
         let result = match target {
             CryptoTarget::Main => self.result.as_ref(),
             CryptoTarget::Playground => self.playground.result.as_ref(),
+            CryptoTarget::Yaml => None,
         };
         result.and_then(|r| r.outcome.as_ref().ok()).cloned()
     }

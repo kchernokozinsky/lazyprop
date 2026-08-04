@@ -10,7 +10,9 @@ use tracing::{debug, info};
 
 use crate::{
     action::Action,
-    components::{about::AboutScreen, home::Home, playground::PlaygroundScreen, Component},
+    components::{
+        about::AboutScreen, home::Home, playground::PlaygroundScreen, yaml::YamlScreen, Component,
+    },
     config::Config,
     panes::{footer::FooterPane, header::HeaderPane, Pane},
     state::{CryptoTarget, InputMode, Operation, State},
@@ -39,10 +41,11 @@ pub enum Mode {
     Main,
     Playground,
     About,
+    Yaml,
 }
 
 impl Mode {
-    const ORDER: [Mode; 3] = [Mode::Main, Mode::Playground, Mode::About];
+    const ORDER: [Mode; 4] = [Mode::Main, Mode::Playground, Mode::Yaml, Mode::About];
 
     /// Index of this screen's component in `App::components`.
     fn component_index(self) -> usize {
@@ -50,6 +53,7 @@ impl Mode {
             Mode::Main => 0,
             Mode::Playground => 1,
             Mode::About => 2,
+            Mode::Yaml => 3,
         }
     }
 
@@ -79,6 +83,7 @@ impl App {
                 Box::new(Home::new()?),
                 Box::new(PlaygroundScreen::new()),
                 Box::new(AboutScreen::new()),
+                Box::new(YamlScreen::new()),
             ],
             should_quit: false,
             should_suspend: false,
@@ -164,6 +169,10 @@ impl App {
         // The playground is a self-contained form screen with its own keys.
         if self.state.mode == Mode::Playground {
             return self.handle_playground_key_event(key);
+        }
+        // The YAML editor handles its own keys (tree, modals, edit mode).
+        if self.state.mode == Mode::Yaml {
+            return crate::yaml_editor::input::handle_key(key, &mut self.state, &self.action_tx);
         }
 
         let action_tx = self.action_tx.clone();
@@ -278,6 +287,7 @@ impl App {
                 KeyCode::Char('1') => Some(Action::GoMain),
                 KeyCode::Char('2') => Some(Action::GoPlayground),
                 KeyCode::Char('3') => Some(Action::GoAbout),
+                KeyCode::Char('4') => Some(Action::GoYaml),
                 KeyCode::Char('h') => Some(Action::PrevScreen),
                 KeyCode::Char('l') => Some(Action::NextScreen),
                 KeyCode::Char('q') => Some(Action::Quit),
@@ -366,6 +376,7 @@ impl App {
                 Action::GoMain => self.state.mode = Mode::Main,
                 Action::GoPlayground => self.state.mode = Mode::Playground,
                 Action::GoAbout => self.state.mode = Mode::About,
+                Action::GoYaml => self.state.mode = Mode::Yaml,
                 Action::PrevScreen => self.state.mode = self.state.mode.shift(false),
                 Action::NextScreen => self.state.mode = self.state.mode.shift(true),
                 Action::Encrypt => self
