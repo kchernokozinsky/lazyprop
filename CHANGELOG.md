@@ -16,6 +16,30 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Manual scalar editing, atomic save (`Ctrl-s`), restore-to-opened (`Ctrl-r`)
   with confirmation, a dirty indicator, external-modification detection, and
   node-targeted background crypto that ignores stale results.
+- **YAML: bulk encrypt/decrypt** (`E`/`D`) of every scalar under the selected
+  subtree, **tree search** (`/`), **undo/redo** (`Ctrl-z`/`Ctrl-y`), and
+  **add-environment** (`a`) without leaving the screen.
+- **YAML: modified-property highlighting** — a subtle `●` marks each property
+  whose value differs from the file as opened (containers flag a modified
+  descendant); editing a value back to its original, saving, or restoring
+  clears the mark.
+- **Config-driven theme** — a `theme` section (`accent`/`success`/`error`)
+  recolours the whole UI.
+- **Mouse support** — scroll-wheel navigation and clickable header tabs.
+- **Unsaved-changes guard** — leaving the YAML screen or opening another file
+  with unsaved edits prompts to Save / Discard / Cancel.
+
+### Changed
+
+- **Contextual, consistent keyboard hints** — the footer now shows only the
+  actions valid for the current screen, focus and mode from a single shared
+  hint system, dropping the least important hints first as the terminal
+  narrows. Confirmation and unsaved-changes popups always show their actions,
+  even in tiny terminals, and never render off-screen.
+- **About** is now a set of page-specific guides (Main, Playground, YAML,
+  General) switched with `←`/`→`.
+- Numeric screen shortcuts (`1`–`4`) still work but are no longer shown in the
+  footer or the header tabs.
 
 ## [0.1.1] - 2026-08-04
 

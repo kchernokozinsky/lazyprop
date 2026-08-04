@@ -83,8 +83,9 @@ lazyprop --envs ./config/envs.yaml --jar /opt/secure-properties-tool.jar
 ```
 
 There are four screens, shown as tabs in the header: **Main**, **Playground**,
-**YAML** and **About**. Switch with `1` / `2` / `3` / `4` (or `?` to jump to
-About).
+**YAML** and **About**. Switch with `1` / `2` / `3` / `4` (still supported, but
+not shown in the hints) or `h` / `l`, and `?` jumps to About. The footer always
+shows only the actions valid for the current screen, focus and mode.
 
 Typical flow on the **Main** screen:
 
@@ -100,8 +101,10 @@ environment — pick the Operation, Algorithm, State and Random-IV, type a Key a
 Value, and press `Enter` to generate. Move between fields with `Tab` / `↑` `↓`,
 change a choice with `←` `→`, and press `Esc` to return to Main.
 
-The **About** screen (`4` or `?`) shows a brief description, the full list of
-keybindings, and where lazyprop keeps its files; scroll it with `w` / `s`.
+The **About** screen (`4` or `?`) is a set of **page-specific guides** — Main,
+Playground, YAML and General — switched with `←` / `→` and scrolled with
+`w` / `s` (or `↑` / `↓`). The General guide lists the configured keybindings and
+where lazyprop keeps its files.
 
 ### The YAML editor (`3`)
 
@@ -121,7 +124,13 @@ leaving comments, ordering and formatting untouched.
 5. `Enter` on a scalar edits it manually; `Ctrl-s` saves (atomically);
    `Ctrl-r` restores the document to exactly how it was opened (with a
    confirmation if there are unsaved changes). The header shows `Modified` when
-   there are unsaved edits.
+   there are unsaved edits, and each individually changed property is marked
+   with a subtle `●` in the tree until it is saved, restored, or edited back to
+   its original value.
+6. `E`/`D` bulk-encrypt/decrypt every scalar under the selected node; `/`
+   filters the tree; `Ctrl-z`/`Ctrl-y` undo/redo; `a` adds an environment
+   without leaving the screen. Leaving or opening another file with unsaved
+   changes prompts to **Save**, **Discard** or **Cancel**.
 
 Example — navigating to `database.password` and pressing `e` turns:
 
@@ -223,8 +232,10 @@ failing deep inside the jar.
 
 **YAML screen** (`3`): `Ctrl-o` open file · `w`/`s` navigate tree · `←`/`→`
 fold/unfold · `Enter` edit scalar (or expand/collapse) · `e`/`d`
-encrypt/decrypt the selected value · `Ctrl-s` save · `Ctrl-r` restore · `r`
-reveal · `Tab` switch focus (environments ↔ tree) · `Esc` cancel/close.
+encrypt/decrypt the selected value · `E`/`D` bulk encrypt/decrypt the subtree ·
+`/` search · `Ctrl-z`/`Ctrl-y` undo/redo · `Ctrl-s` save · `Ctrl-r` restore ·
+`r` reveal · `a` add environment · `Tab` switch focus (environments ↔ tree) ·
+`Esc` cancel/close.
 
 In text fields (Value, and the form/playground Key/Value), `←` `→` `Home` `End`
 move the cursor, `Backspace`/`Delete` edit at it, and long values scroll
@@ -259,8 +270,17 @@ The **jar** is resolved the same way (`--jar`, `LAZYPROP_JAR`,
 
 Keybindings and styles are read from a `config.{json5,json,yaml,toml,ini}` in
 the config directory (`$LAZYPROP_CONFIG`, otherwise the platform config dir),
-falling back to the bundled [`.config/config.json`](.config/config.json). Logs
-go to `lazyprop.log` in the data dir (`$LAZYPROP_DATA`); set `$LAZYPROP_LOG_LEVEL`
+falling back to the bundled [`.config/config.json`](.config/config.json). A
+`theme` section recolours the whole UI — for example:
+
+```json
+{ "theme": { "accent": "magenta", "success": "green", "error": "red" } }
+```
+
+Recognised roles are `accent`, `success` and `error`; each value is a colour
+name (`magenta`, `bright blue`, `color12`, …). Unset roles keep the ANSI
+defaults, which stay legible on both light and dark terminals. Logs go to
+`lazyprop.log` in the data dir (`$LAZYPROP_DATA`); set `$LAZYPROP_LOG_LEVEL`
 (e.g. `debug`) to change verbosity.
 
 ## Development
