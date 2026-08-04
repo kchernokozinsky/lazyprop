@@ -121,8 +121,15 @@ fn draw_environments(frame: &mut Frame, area: Rect, state: &State) {
 fn draw_tree(frame: &mut Frame, area: Rect, state: &State) {
     let y = &state.yaml;
     let (style, btype) = focus_border(y.focus == YamlFocus::Tree);
+    let mut title = " YAML tree ".to_string();
+    if let Some(q) = y.search_query() {
+        let editing = if y.search_editing { "_" } else { "" };
+        title = format!(" YAML tree — /{q}{editing} ");
+    } else if y.search_editing {
+        title = " YAML tree — /_ ".to_string();
+    }
     let block = Block::default()
-        .title(" YAML tree ")
+        .title(title)
         .borders(Borders::ALL)
         .border_style(style)
         .border_type(btype);

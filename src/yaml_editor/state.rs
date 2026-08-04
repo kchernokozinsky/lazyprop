@@ -83,6 +83,15 @@ pub struct YamlEditorState {
     disk_hash: Option<u64>,
     pub open_modal: Option<OpenModal>,
     pub confirm: Option<Confirm>,
+    undo_stack: Vec<String>,
+    redo_stack: Vec<String>,
+    /// Search filter over the tree (node label / path).
+    pub search: Option<TextField>,
+    /// Whether keystrokes are currently editing the search query.
+    pub search_editing: bool,
+    /// Remaining node paths for an in-progress bulk encrypt/decrypt.
+    bulk_queue: Vec<Vec<PathSeg>>,
+    bulk_op: Option<Operation>,
 }
 
 impl Default for YamlEditorState {
@@ -102,6 +111,12 @@ impl Default for YamlEditorState {
             disk_hash: None,
             open_modal: None,
             confirm: None,
+            undo_stack: Vec::new(),
+            redo_stack: Vec::new(),
+            search: None,
+            search_editing: false,
+            bulk_queue: Vec::new(),
+            bulk_op: None,
         }
     }
 }
@@ -134,6 +149,50 @@ impl YamlEditorState {
         self.set_msg(text, is_error);
     }
 
+    // --- undo / redo -------------------------------------------------------
+
+    /// Record the current content so a mutation can be undone.
+    fn snapshot(&mut self) {
+        if self.undo_stack.last().map(String::as_str) != Some(self.doc.raw()) {
+            self.undo_stack.push(self.doc.raw().to_string());
+            if self.undo_stack.len() > 100 {
+                self.undo_stack.remove(0);
+            }
+            self.redo_stack.clear();
+        }
+    }
+
+    fn set_doc(&mut self, text: String) {
+        self.doc = Document::parse(&text);
+        self.editing = None;
+        if self.selected_id().is_none() {
+            self.selected_path = self
+                .visible()
+                .first()
+                .map(|&id| self.doc.nodes()[id].path.clone());
+        }
+    }
+
+    pub fn undo(&mut self) {
+        if let Some(prev) = self.undo_stack.pop() {
+            self.redo_stack.push(self.doc.raw().to_string());
+            self.set_doc(prev);
+            self.set_msg("Undo.", false);
+        } else {
+            self.set_msg("Nothing to undo.", false);
+        }
+    }
+
+    pub fn redo(&mut self) {
+        if let Some(next) = self.redo_stack.pop() {
+            self.undo_stack.push(self.doc.raw().to_string());
+            self.set_doc(next);
+            self.set_msg("Redo.", false);
+        } else {
+            self.set_msg("Nothing to redo.", false);
+        }
+    }
+
     // --- opening -----------------------------------------------------------
 
     /// Validate and load a YAML file from a user-supplied path. On any failure
@@ -161,6 +220,12 @@ impl YamlEditorState {
         self.initial_content = content.clone();
         self.doc = Document::parse(&content);
         self.file_path = Some(path);
+        self.undo_stack.clear();
+        self.redo_stack.clear();
+        self.search = None;
+        self.search_editing = false;
+        self.bulk_op = None;
+        self.bulk_queue.clear();
         self.expanded.clear();
         // Expand top-level containers by default.
         for &root in self.doc.roots() {
@@ -184,21 +249,56 @@ impl YamlEditorState {
 
     // --- navigation --------------------------------------------------------
 
-    /// Node ids in display order, honouring collapsed containers.
+    /// The active, non-empty search query, if any.
+    pub fn search_query(&self) -> Option<String> {
+        self.search
+            .as_ref()
+            .map(|f| f.value())
+            .filter(|s| !s.is_empty())
+    }
+
+    /// Node ids to keep when a search is active: matches plus their ancestors.
+    fn include_set(&self, query: &str) -> HashSet<usize> {
+        let q = query.to_lowercase();
+        let mut include = HashSet::new();
+        for node in self.doc.nodes() {
+            let hay = format!("{} {}", node.label, document::path_to_string(&node.path));
+            if hay.to_lowercase().contains(&q) {
+                let mut cur = Some(node.id);
+                while let Some(id) = cur {
+                    include.insert(id);
+                    cur = self.doc.nodes()[id].parent;
+                }
+            }
+        }
+        include
+    }
+
+    /// Node ids in display order, honouring collapsed containers (and the
+    /// active search filter, which reveals matches with their ancestors).
     pub fn visible(&self) -> Vec<usize> {
+        let filter = self.search_query().map(|q| self.include_set(&q));
         let mut out = Vec::new();
         for &root in self.doc.roots() {
-            self.push_visible(root, &mut out);
+            self.push_visible(root, filter.as_ref(), &mut out);
         }
         out
     }
 
-    fn push_visible(&self, id: usize, out: &mut Vec<usize>) {
+    fn push_visible(&self, id: usize, filter: Option<&HashSet<usize>>, out: &mut Vec<usize>) {
+        if let Some(f) = filter {
+            if !f.contains(&id) {
+                return;
+            }
+        }
         out.push(id);
         let node = &self.doc.nodes()[id];
-        if node.kind != NodeKind::Scalar && self.expanded.contains(&node.path) {
+        // While searching, reveal matching descendants regardless of fold state.
+        let show_children = node.kind != NodeKind::Scalar
+            && (filter.is_some() || self.expanded.contains(&node.path));
+        if show_children {
             for &child in &node.children {
-                self.push_visible(child, out);
+                self.push_visible(child, filter, out);
             }
         }
     }
@@ -314,6 +414,7 @@ impl YamlEditorState {
         let id = self.selected_id().ok_or("Nothing selected")?;
         let new_source = document::serialize_scalar(&field.value());
         let text = self.doc.replace_scalar_source(id, &new_source)?;
+        self.snapshot();
         self.doc = Document::parse(&text);
         self.set_msg("Value updated.", false);
         Ok(())
@@ -326,10 +427,14 @@ impl YamlEditorState {
     /// decrypt) and records the target so the async result lands on the right
     /// node. `env_selected` must already be verified by the caller.
     pub fn begin_crypto(&mut self, op: Operation) -> Result<String, String> {
+        let id = self.selected_id().ok_or("Nothing selected")?;
+        self.begin_crypto_for(id, op)
+    }
+
+    fn begin_crypto_for(&mut self, id: usize, op: Operation) -> Result<String, String> {
         if self.crypto_in_progress {
             return Err("A crypto operation is already running".to_string());
         }
-        let id = self.selected_id().ok_or("Nothing selected")?;
         let node = self.doc.nodes()[id].clone();
         if node.kind != NodeKind::Scalar {
             return Err("Select a scalar value, not a mapping or sequence".to_string());
@@ -391,6 +496,7 @@ impl YamlEditorState {
         };
         match self.doc.replace_scalar_source(id, &new_source) {
             Ok(text) => {
+                self.snapshot();
                 self.doc = Document::parse(&text);
                 self.set_msg(
                     match pending.op {
@@ -402,6 +508,105 @@ impl YamlEditorState {
             }
             Err(e) => self.set_msg(format!("Could not apply result: {e}"), true),
         }
+    }
+
+    // --- search ------------------------------------------------------------
+
+    pub fn start_search(&mut self) {
+        if self.search.is_none() {
+            self.search = Some(TextField::default());
+        }
+        self.search_editing = true;
+    }
+
+    pub fn search_field(&mut self) -> Option<&mut TextField> {
+        self.search.as_mut()
+    }
+
+    /// Stop editing but keep the filter applied.
+    pub fn confirm_search(&mut self) {
+        self.search_editing = false;
+        // Keep the selection inside the filtered set.
+        if self
+            .selected_id()
+            .map(|id| !self.visible().contains(&id))
+            .unwrap_or(true)
+        {
+            self.selected_path = self
+                .visible()
+                .first()
+                .map(|&id| self.doc.nodes()[id].path.clone());
+        }
+    }
+
+    /// Clear the filter entirely.
+    pub fn clear_search(&mut self) {
+        self.search = None;
+        self.search_editing = false;
+    }
+
+    // --- bulk encrypt / decrypt --------------------------------------------
+
+    pub fn bulk_in_progress(&self) -> bool {
+        self.bulk_op.is_some()
+    }
+
+    fn collect_bulk_targets(&self, id: usize, op: Operation, out: &mut Vec<Vec<PathSeg>>) {
+        let node = &self.doc.nodes()[id];
+        if node.kind == NodeKind::Scalar {
+            if node.is_editable_scalar() {
+                let logical = self.doc.logical_value(id).unwrap_or_default();
+                let wrapped = document::is_wrapped(&logical);
+                let take = match op {
+                    Operation::Encrypt => !wrapped && !logical.trim().is_empty(),
+                    Operation::Decrypt => wrapped,
+                };
+                if take {
+                    out.push(node.path.clone());
+                }
+            }
+        } else {
+            for &c in &node.children {
+                self.collect_bulk_targets(c, op, out);
+            }
+        }
+    }
+
+    /// Queue a bulk encrypt/decrypt of every applicable scalar under the
+    /// selected node. Call `next_bulk_value` to drive it.
+    pub fn start_bulk(&mut self, op: Operation) -> Result<(), String> {
+        if self.crypto_in_progress || self.bulk_op.is_some() {
+            return Err("A crypto operation is already running".to_string());
+        }
+        let sel = self.selected_id().ok_or("Nothing selected")?;
+        let mut targets = Vec::new();
+        self.collect_bulk_targets(sel, op, &mut targets);
+        if targets.is_empty() {
+            return Err(match op {
+                Operation::Encrypt => "No plaintext values to encrypt under the selection".into(),
+                Operation::Decrypt => "No encrypted values to decrypt under the selection".into(),
+            });
+        }
+        self.bulk_op = Some(op);
+        self.bulk_queue = targets;
+        Ok(())
+    }
+
+    /// Prepare the next queued bulk item, returning `(op, value)` to spawn, or
+    /// `None` when the queue is drained.
+    pub fn next_bulk_value(&mut self) -> Option<(Operation, String)> {
+        let op = self.bulk_op?;
+        while !self.bulk_queue.is_empty() {
+            let path = self.bulk_queue.remove(0);
+            if let Some(id) = self.doc.find_by_path(&path) {
+                if let Ok(value) = self.begin_crypto_for(id, op) {
+                    return Some((op, value));
+                }
+            }
+        }
+        self.bulk_op = None;
+        self.set_msg("Bulk operation complete.", false);
+        None
     }
 
     // --- save / restore ----------------------------------------------------
@@ -684,6 +889,64 @@ mod tests {
         assert!(!st.dirty());
         let on_disk = std::fs::read_to_string(&tmp.path).unwrap();
         assert!(on_disk.contains("password: newpass"));
+    }
+
+    #[test]
+    fn undo_redo_reverts_and_replays_edit() {
+        let (mut st, _t) = open_sample();
+        st.selected_path = Some(vec![
+            PathSeg::Key("database".into()),
+            PathSeg::Key("password".into()),
+        ]);
+        st.editing = Some(TextField::from_text("changed"));
+        st.apply_edit().unwrap();
+        assert!(st.doc().raw().contains("password: changed"));
+        st.undo();
+        assert!(st.doc().raw().contains("password: secret"));
+        assert!(!st.doc().raw().contains("password: changed"));
+        st.redo();
+        assert!(st.doc().raw().contains("password: changed"));
+    }
+
+    #[test]
+    fn search_filters_visible_nodes() {
+        let (mut st, _t) = open_sample();
+        let all = st.visible().len();
+        st.start_search();
+        st.search_field().unwrap().insert('p');
+        st.search_field().unwrap().insert('o');
+        st.search_field().unwrap().insert('r');
+        st.search_field().unwrap().insert('t');
+        st.confirm_search();
+        let filtered = st.visible().len();
+        assert!(filtered < all);
+        // The `port` node and its ancestors survive the filter.
+        let labels: Vec<String> = st
+            .visible()
+            .iter()
+            .map(|&id| st.doc().nodes()[id].label.clone())
+            .collect();
+        assert!(labels.iter().any(|l| l == "port"));
+        assert!(!labels.iter().any(|l| l == "username"));
+        st.clear_search();
+        assert_eq!(st.visible().len(), all);
+    }
+
+    #[test]
+    fn bulk_queues_all_scalars_under_subtree() {
+        let (mut st, _t) = open_sample();
+        st.selected_path = Some(vec![PathSeg::Key("database".into())]);
+        st.start_bulk(Operation::Encrypt).unwrap();
+        // Two scalars under `database`: username and password.
+        let first = st.next_bulk_value().unwrap();
+        assert_eq!(first.0, Operation::Encrypt);
+        st.finish_crypto(Ok("C1".to_string()));
+        let second = st.next_bulk_value();
+        assert!(second.is_some());
+        st.finish_crypto(Ok("C2".to_string()));
+        assert!(st.next_bulk_value().is_none());
+        assert!(st.doc().raw().contains("![C1]"));
+        assert!(st.doc().raw().contains("![C2]"));
     }
 
     // Minimal temp-file helper (avoids a new dependency).

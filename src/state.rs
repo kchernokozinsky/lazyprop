@@ -399,6 +399,12 @@ pub struct State {
     pub playground: Playground,
     /// State of the YAML editor screen.
     pub yaml: YamlEditorState,
+    /// A one-off message to surface right after startup (e.g. a bad envs file).
+    pub startup_message: Option<String>,
+}
+
+fn first_line(s: &str) -> String {
+    s.lines().next().unwrap_or("").to_string()
 }
 
 impl State {
@@ -407,8 +413,22 @@ impl State {
         // a project-local file, then the ~/.lazyprop home (created on first run).
         let envs_path = crate::config::resolve_envs_path(envs_path)?;
         let jar_path = crate::config::resolve_jar_path(jar_path)?;
+        // A malformed envs file should not abort the whole app; start with no
+        // environments and surface a clear message instead.
+        let (envs, startup_message) = match Environments::new(envs_path.to_string_lossy()) {
+            Ok(envs) => (envs, None),
+            Err(e) => (
+                Environments::default(),
+                Some(format!(
+                    "Could not load {}: {}. Fix it and restart, or add environments here.",
+                    envs_path.display(),
+                    first_line(&e.to_string())
+                )),
+            ),
+        };
         Ok(Self {
-            envs: Environments::new(envs_path.to_string_lossy())?,
+            envs,
+            startup_message,
             current_env_index: 0,
             input_mode: InputMode::default(),
             search_query: None,
@@ -457,6 +477,48 @@ impl State {
                 );
             }
             Err(e) => self.yaml.report(e, true),
+        }
+    }
+
+    /// Start a bulk encrypt/decrypt of every applicable scalar under the
+    /// selected YAML node, processing them one at a time off the UI thread.
+    pub fn yaml_start_bulk(&mut self, tx: UnboundedSender<Action>, op: Operation) {
+        if self.busy || self.yaml.crypto_in_progress || self.yaml.bulk_in_progress() {
+            return;
+        }
+        let Some(env) = self.selected_env().cloned() else {
+            self.yaml.report("No environment selected.", true);
+            return;
+        };
+        if !env.algorithm.supports_modes() {
+            self.yaml.report(
+                format!("{:?} is not supported by the tool.", env.algorithm),
+                true,
+            );
+            return;
+        }
+        if let Err(e) = self.yaml.start_bulk(op) {
+            self.yaml.report(e, true);
+            return;
+        }
+        self.yaml_pump_bulk(tx);
+    }
+
+    /// Spawn the next queued bulk item, if any.
+    pub fn yaml_pump_bulk(&mut self, tx: UnboundedSender<Action>) {
+        if let Some((op, value)) = self.yaml.next_bulk_value() {
+            let Some(env) = self.selected_env().cloned() else {
+                return;
+            };
+            self.busy = true;
+            spawn_crypto(
+                tx,
+                CryptoTarget::Yaml,
+                op,
+                self.jar_path.clone(),
+                env,
+                value,
+            );
         }
     }
 

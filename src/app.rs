@@ -108,7 +108,7 @@ impl App {
 
     pub async fn run(&mut self) -> Result<()> {
         let mut tui = Tui::new()?
-            // .mouse(true) // uncomment this line to enable mouse support
+            .mouse(true)
             .tick_rate(self.tick_rate)
             .frame_rate(self.frame_rate);
         tui.enter()?;
@@ -124,6 +124,10 @@ impl App {
         }
 
         self.header.init(&self.state)?;
+
+        if let Some(msg) = self.state.startup_message.take() {
+            self.action_tx.send(Action::Error(msg))?;
+        }
 
         let action_tx = self.action_tx.clone();
         loop {
@@ -399,6 +403,9 @@ impl App {
                 Action::SendToPlayground => self.state.send_to_playground(),
                 Action::CryptoDone(target, op, ref outcome) => {
                     self.state.set_result(target, op, outcome.clone());
+                    if target == CryptoTarget::Yaml {
+                        self.state.yaml_pump_bulk(self.action_tx.clone());
+                    }
                 }
                 _ => {}
             }

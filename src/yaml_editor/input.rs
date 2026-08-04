@@ -50,7 +50,27 @@ pub fn handle_key(key: KeyEvent, state: &mut State, tx: &UnboundedSender<Action>
         return Ok(());
     }
 
-    // 4. Normal mode.
+    // 4. Search input mode (typing the tree filter).
+    if state.yaml.search_editing {
+        match key.code {
+            KeyCode::Esc => state.yaml.clear_search(),
+            KeyCode::Enter | KeyCode::Down | KeyCode::Up => state.yaml.confirm_search(),
+            KeyCode::Backspace => {
+                if let Some(f) = state.yaml.search_field() {
+                    f.backspace();
+                }
+            }
+            KeyCode::Char(c) => {
+                if let Some(f) = state.yaml.search_field() {
+                    f.insert(c);
+                }
+            }
+            _ => {}
+        }
+        return Ok(());
+    }
+
+    // 5. Normal mode.
     // Screen switching (no text field is focused here).
     match key.code {
         KeyCode::Char('1') => return send(tx, Action::GoMain),
@@ -73,7 +93,15 @@ pub fn handle_key(key: KeyEvent, state: &mut State, tx: &UnboundedSender<Action>
         state.yaml.request_restore();
         return Ok(());
     }
-    if ctrl(&key, 'c') || ctrl(&key, 'd') {
+    if ctrl(&key, 'z') {
+        state.yaml.undo();
+        return Ok(());
+    }
+    if ctrl(&key, 'y') {
+        state.yaml.redo();
+        return Ok(());
+    }
+    if ctrl(&key, 'c') {
         return send(tx, Action::Quit);
     }
 
@@ -108,6 +136,13 @@ pub fn handle_key(key: KeyEvent, state: &mut State, tx: &UnboundedSender<Action>
         }
         KeyCode::Char('e') => state.yaml_begin_crypto(tx.clone(), Operation::Encrypt),
         KeyCode::Char('d') => state.yaml_begin_crypto(tx.clone(), Operation::Decrypt),
+        KeyCode::Char('E') => state.yaml_start_bulk(tx.clone(), Operation::Encrypt),
+        KeyCode::Char('D') => state.yaml_start_bulk(tx.clone(), Operation::Decrypt),
+        KeyCode::Char('/') => {
+            if state.yaml.focus == YamlFocus::Tree {
+                state.yaml.start_search();
+            }
+        }
         KeyCode::Char('r') => state.yaml.reveal = !state.yaml.reveal,
         _ => {}
     }
