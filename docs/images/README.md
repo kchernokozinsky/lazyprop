@@ -1,8 +1,8 @@
 # Screenshots
 
-These are **placeholder** images referenced by the top-level [`README.md`](../../README.md).
-Replace each with a real screenshot, keeping the same filename so the README
-needs no edits.
+Screenshots referenced by the top-level [`README.md`](../../README.md). To
+refresh one, replace the file keeping the same filename so the README needs no
+edits.
 
 | File | Used for | Suggested size |
 | --- | --- | --- |

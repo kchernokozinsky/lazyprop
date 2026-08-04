@@ -43,9 +43,6 @@ by hand. `lazyprop` wraps it in a fast, keyboard-driven terminal UI:
 
 ## Screenshots
 
-> The images below are placeholders — replace the files in
-> [`docs/images/`](docs/images) with real screenshots.
-
 |  |  |
 | --- | --- |
 | **Main** — encrypt/decrypt against an environment | **YAML editor** — edit values in place |
