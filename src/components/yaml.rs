@@ -10,7 +10,7 @@ use crate::{
     theme,
     yaml_editor::{
         document::{self, NodeKind, ScalarStyle},
-        state::{Confirm, OpenMode, YamlFocus},
+        state::{Confirm, Guard, OpenMode, YamlFocus},
     },
 };
 
@@ -362,6 +362,29 @@ fn draw_overlays(frame: &mut Frame, area: Rect, state: &State) {
         ];
         let block = Block::default()
             .title(" Confirm ")
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(theme::error()));
+        frame.render_widget(Paragraph::new(lines).block(block), popup);
+    }
+
+    if let Some(guard) = y.guard() {
+        let popup = centered(56, 26, area);
+        frame.render_widget(Clear, popup);
+        let text = match guard {
+            Guard::Quit => "Unsaved changes. Quit anyway?",
+            Guard::Open(_) => "Unsaved changes. Open another file?",
+        };
+        let lines = vec![
+            Line::raw(""),
+            Line::from(Span::raw(format!("  {text}"))),
+            Line::raw(""),
+            Line::from(Span::styled(
+                "  s save · d discard · c / Esc cancel",
+                theme::hint(),
+            )),
+        ];
+        let block = Block::default()
+            .title(" Unsaved changes ")
             .borders(Borders::ALL)
             .border_style(Style::default().fg(theme::error()));
         frame.render_widget(Paragraph::new(lines).block(block), popup);

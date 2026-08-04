@@ -55,6 +55,16 @@ pub enum Confirm {
     OverwriteExternal,
 }
 
+/// A pending action deferred while the document has unsaved changes, awaiting a
+/// Save / Discard / Cancel choice.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Guard {
+    /// Quit the application.
+    Quit,
+    /// Open (replace the current document with) the file at this path.
+    Open(String),
+}
+
 /// A crypto operation in flight, targeting a specific node by its stable path.
 #[derive(Debug, Clone)]
 struct Pending {
@@ -83,6 +93,8 @@ pub struct YamlEditorState {
     disk_hash: Option<u64>,
     pub open_modal: Option<OpenModal>,
     pub confirm: Option<Confirm>,
+    /// A quit/open deferred until the user resolves unsaved changes.
+    guard: Option<Guard>,
     undo_stack: Vec<String>,
     redo_stack: Vec<String>,
     /// Search filter over the tree (node label / path).
@@ -111,6 +123,7 @@ impl Default for YamlEditorState {
             disk_hash: None,
             open_modal: None,
             confirm: None,
+            guard: None,
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
             search: None,
@@ -672,6 +685,13 @@ impl YamlEditorState {
             return false; // navigated into a directory
         };
         let input = path.to_string_lossy().to_string();
+        // Replacing an unsaved document: defer until the user chooses
+        // Save / Discard / Cancel.
+        if self.dirty() {
+            self.guard = Some(Guard::Open(input));
+            self.open_modal = None;
+            return true;
+        }
         match self.open_path(&input) {
             Ok(()) => {
                 self.open_modal = None;
@@ -684,6 +704,47 @@ impl YamlEditorState {
                 false
             }
         }
+    }
+
+    // --- unsaved-changes guard --------------------------------------------
+
+    /// The pending guarded action, if the UI is waiting on a Save/Discard/Cancel
+    /// choice.
+    pub fn guard(&self) -> Option<&Guard> {
+        self.guard.as_ref()
+    }
+
+    /// Guard a quit: returns `true` if there are unsaved changes (a prompt was
+    /// raised) or `false` if it is safe to quit immediately.
+    pub fn guard_quit(&mut self) -> bool {
+        if self.dirty() {
+            self.guard = Some(Guard::Quit);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Resolve the guard by saving first. On success the guard is cleared and
+    /// the pending action returned; on failure the guard is kept and `None`
+    /// returned (with an error message set).
+    pub fn guard_save(&mut self) -> Option<Guard> {
+        if let Err(e) = self.save() {
+            self.set_msg(format!("Save failed: {e}"), true);
+            return None;
+        }
+        self.guard.take()
+    }
+
+    /// Resolve the guard by discarding unsaved changes; returns the pending
+    /// action.
+    pub fn guard_discard(&mut self) -> Option<Guard> {
+        self.guard.take()
+    }
+
+    /// Dismiss the guard, keeping the document as-is.
+    pub fn guard_cancel(&mut self) {
+        self.guard = None;
     }
 
     /// Restore, asking for confirmation first if there are unsaved changes.
@@ -947,6 +1008,23 @@ mod tests {
         assert!(st.next_bulk_value().is_none());
         assert!(st.doc().raw().contains("![C1]"));
         assert!(st.doc().raw().contains("![C2]"));
+    }
+
+    #[test]
+    fn quit_guard_only_triggers_when_dirty() {
+        let (mut st, _t) = open_sample();
+        assert!(!st.guard_quit()); // clean: safe to quit
+        assert!(st.guard().is_none());
+        st.selected_path = Some(vec![
+            PathSeg::Key("database".into()),
+            PathSeg::Key("password".into()),
+        ]);
+        st.editing = Some(TextField::from_text("changed"));
+        st.apply_edit().unwrap();
+        assert!(st.guard_quit()); // dirty: prompt
+        assert_eq!(st.guard(), Some(&Guard::Quit));
+        st.guard_cancel();
+        assert!(st.guard().is_none());
     }
 
     // Minimal temp-file helper (avoids a new dependency).

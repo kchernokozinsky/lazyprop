@@ -6,13 +6,45 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use crate::action::Action;
 use crate::state::{Operation, State};
-use crate::yaml_editor::state::{OpenMode, ToggleResult, YamlFocus};
+use crate::yaml_editor::state::{Guard, OpenMode, ToggleResult, YamlFocus};
 
 fn ctrl(key: &KeyEvent, c: char) -> bool {
     key.code == KeyCode::Char(c) && key.modifiers.contains(KeyModifiers::CONTROL)
 }
 
+/// Carry out a guarded action once the user has chosen Save or Discard.
+fn perform_guard(g: Guard, state: &mut State, tx: &UnboundedSender<Action>) -> Result<()> {
+    match g {
+        Guard::Quit => send(tx, Action::Quit),
+        Guard::Open(path) => {
+            if let Err(e) = state.yaml.open_path(&path) {
+                state.yaml.report(e, true);
+            }
+            Ok(())
+        }
+    }
+}
+
 pub fn handle_key(key: KeyEvent, state: &mut State, tx: &UnboundedSender<Action>) -> Result<()> {
+    // 0. Unsaved-changes guard (Save / Discard / Cancel) takes precedence.
+    if state.yaml.guard().is_some() {
+        match key.code {
+            KeyCode::Char('s') | KeyCode::Char('S') => {
+                if let Some(g) = state.yaml.guard_save() {
+                    return perform_guard(g, state, tx);
+                }
+            }
+            KeyCode::Char('d') | KeyCode::Char('D') => {
+                if let Some(g) = state.yaml.guard_discard() {
+                    return perform_guard(g, state, tx);
+                }
+            }
+            KeyCode::Char('c') | KeyCode::Char('C') | KeyCode::Esc => state.yaml.guard_cancel(),
+            _ => {}
+        }
+        return Ok(());
+    }
+
     // 1. Confirmation dialog takes precedence.
     if state.yaml.confirm.is_some() {
         match key.code {
@@ -106,7 +138,11 @@ pub fn handle_key(key: KeyEvent, state: &mut State, tx: &UnboundedSender<Action>
     }
 
     match key.code {
-        KeyCode::Char('q') => return send(tx, Action::Quit),
+        KeyCode::Char('q') => {
+            if !state.yaml.guard_quit() {
+                return send(tx, Action::Quit);
+            }
+        }
         KeyCode::Tab => {
             state.yaml.focus = match state.yaml.focus {
                 YamlFocus::Tree => YamlFocus::Environments,
