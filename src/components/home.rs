@@ -161,7 +161,7 @@ fn form_text_line(
 ) -> Line<'static> {
     let mut spans = vec![
         Span::styled(
-            if active { "▶ " } else { "  " },
+            if active { "> " } else { "  " },
             Style::default().fg(theme::ACCENT),
         ),
         Span::styled(format!("{label:>10}: "), theme::label()),
@@ -178,7 +178,7 @@ fn form_choice_line(label: &str, value: &str, active: bool) -> Line<'static> {
     };
     Line::from(vec![
         Span::styled(
-            if active { "▶ " } else { "  " },
+            if active { "> " } else { "  " },
             Style::default().fg(theme::ACCENT),
         ),
         Span::styled(format!("{label:>10}: "), theme::label()),

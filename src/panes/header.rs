@@ -35,8 +35,11 @@ impl Pane for HeaderPane {
     }
 
     fn draw(&mut self, frame: &mut Frame<'_>, area: Rect, state: &State) -> Result<()> {
+        // Size the title column to the title itself so the leading "l" of
+        // "lazyprop" is never clipped by a too-narrow fixed width.
+        let title_width = ("lazyprop ".len() + VERSION_MESSAGE.len() + 1) as u16;
         let [left, right] =
-            Layout::horizontal([Constraint::Fill(1), Constraint::Length(28)]).areas(area);
+            Layout::horizontal([Constraint::Fill(1), Constraint::Length(title_width)]).areas(area);
 
         let gap = || Span::raw("   ");
         let mut spans = vec![Span::raw(" ")];

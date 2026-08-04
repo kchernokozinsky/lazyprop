@@ -109,7 +109,7 @@ impl Pane for EnvsPane {
 
         let list = List::new(items)
             .block(block)
-            .highlight_symbol("▶ ")
+            .highlight_symbol("> ")
             .highlight_spacing(HighlightSpacing::Always)
             .highlight_style(
                 Style::default()
