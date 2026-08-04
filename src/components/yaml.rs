@@ -48,6 +48,9 @@ impl Component for YamlScreen {
             .block(Block::default().borders(Borders::ALL).title(" YAML "));
             frame.render_widget(hint, body);
             draw_overlays(frame, area, state);
+            if state.form.is_some() {
+                super::home::draw_env_form(frame, area, state);
+            }
             return Ok(());
         }
 
@@ -61,6 +64,10 @@ impl Component for YamlScreen {
         draw_property(frame, prop_area, state);
 
         draw_overlays(frame, area, state);
+        // The add-environment form is modal and shared with the Main screen.
+        if state.form.is_some() {
+            super::home::draw_env_form(frame, area, state);
+        }
         Ok(())
     }
 }

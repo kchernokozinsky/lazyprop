@@ -180,6 +180,9 @@ pub fn handle_key(key: KeyEvent, state: &mut State, tx: &UnboundedSender<Action>
             }
         }
         KeyCode::Char('r') => state.yaml.reveal = !state.yaml.reveal,
+        // Add a new environment without leaving the YAML screen. The form is
+        // modal and its keys are handled at the app level.
+        KeyCode::Char('a') => state.open_add_form(),
         _ => {}
     }
     Ok(())

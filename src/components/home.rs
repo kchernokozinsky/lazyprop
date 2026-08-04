@@ -68,62 +68,6 @@ impl Home {
         Ok(())
     }
 
-    fn draw_env_form(&self, frame: &mut Frame, area: Rect, state: &State) {
-        let Some(form) = &state.form else { return };
-
-        let popup = centered_rect(60, 60, area);
-        // Width available for a text field's value (borders + marker + label).
-        let field_width = (popup.width as usize).saturating_sub(2 + 2 + 12 + 1);
-
-        let mut lines: Vec<Line> = vec![
-            Line::raw(""),
-            form_text_line(
-                "Name",
-                &form.name,
-                form.field == FormField::Name,
-                field_width,
-            ),
-            form_choice_line(
-                "Algorithm",
-                &format!("{:?}", form.algorithm),
-                form.field == FormField::Algorithm,
-            ),
-            form_choice_line(
-                "Mode",
-                &if form.algorithm.supports_modes() {
-                    format!("{:?}", form.cipher)
-                } else {
-                    "n/a".to_string()
-                },
-                form.field == FormField::Mode,
-            ),
-            form_choice_line(
-                "Random IV",
-                if form.use_random_ivs { "yes" } else { "no" },
-                form.field == FormField::RandomIv,
-            ),
-            form_text_line("Key", &form.key, form.field == FormField::Key, field_width),
-            Line::raw(""),
-        ];
-        if let Some(err) = &form.error {
-            lines.push(Line::from(Span::styled(
-                format!("  {err}"),
-                Style::default().fg(theme::error()),
-            )));
-        }
-        lines.push(Line::from(Span::styled(
-            "  Tab/↑↓ move · ←/→ change · Enter save · Esc cancel",
-            theme::hint(),
-        )));
-
-        frame.render_widget(Clear, popup);
-        let block = Block::default()
-            .title(form.title())
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(theme::accent()));
-        frame.render_widget(Paragraph::new(lines).block(block), popup);
-    }
-
     fn draw_delete_confirm(&self, frame: &mut Frame, area: Rect, state: &State) {
         let Some(name) = state.pending_delete_name() else {
             return;
@@ -151,6 +95,64 @@ impl Home {
             .border_style(Style::default().fg(theme::error()));
         frame.render_widget(Paragraph::new(lines).block(block), popup);
     }
+}
+
+/// Draw the add/edit environment form as a centered overlay. Shared by the Main
+/// and YAML screens so an environment can be added without leaving either.
+pub fn draw_env_form(frame: &mut Frame, area: Rect, state: &State) {
+    let Some(form) = &state.form else { return };
+
+    let popup = centered_rect(60, 60, area);
+    // Width available for a text field's value (borders + marker + label).
+    let field_width = (popup.width as usize).saturating_sub(2 + 2 + 12 + 1);
+
+    let mut lines: Vec<Line> = vec![
+        Line::raw(""),
+        form_text_line(
+            "Name",
+            &form.name,
+            form.field == FormField::Name,
+            field_width,
+        ),
+        form_choice_line(
+            "Algorithm",
+            &format!("{:?}", form.algorithm),
+            form.field == FormField::Algorithm,
+        ),
+        form_choice_line(
+            "Mode",
+            &if form.algorithm.supports_modes() {
+                format!("{:?}", form.cipher)
+            } else {
+                "n/a".to_string()
+            },
+            form.field == FormField::Mode,
+        ),
+        form_choice_line(
+            "Random IV",
+            if form.use_random_ivs { "yes" } else { "no" },
+            form.field == FormField::RandomIv,
+        ),
+        form_text_line("Key", &form.key, form.field == FormField::Key, field_width),
+        Line::raw(""),
+    ];
+    if let Some(err) = &form.error {
+        lines.push(Line::from(Span::styled(
+            format!("  {err}"),
+            Style::default().fg(theme::error()),
+        )));
+    }
+    lines.push(Line::from(Span::styled(
+        "  Tab/↑↓ move · ←/→ change · Enter save · Esc cancel",
+        theme::hint(),
+    )));
+
+    frame.render_widget(Clear, popup);
+    let block = Block::default()
+        .title(form.title())
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(theme::accent()));
+    frame.render_widget(Paragraph::new(lines).block(block), popup);
 }
 
 fn form_text_line(
@@ -265,7 +267,7 @@ impl Component for Home {
         self.status.draw(frame, status_area, state)?;
 
         if state.form.is_some() {
-            self.draw_env_form(frame, area, state);
+            draw_env_form(frame, area, state);
         }
         if state.pending_delete.is_some() {
             self.draw_delete_confirm(frame, area, state);
