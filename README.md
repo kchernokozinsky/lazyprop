@@ -83,7 +83,7 @@ lazyprop --envs ./config/envs.yaml --jar /opt/secure-properties-tool.jar
 ```
 
 There are four screens, shown as tabs in the header: **Main**, **Playground**,
-**About** and **YAML**. Switch with `1` / `2` / `3` / `4` (or `?` to jump to
+**YAML** and **About**. Switch with `1` / `2` / `3` / `4` (or `?` to jump to
 About).
 
 Typical flow on the **Main** screen:
@@ -100,15 +100,15 @@ environment — pick the Operation, Algorithm, State and Random-IV, type a Key a
 Value, and press `Enter` to generate. Move between fields with `Tab` / `↑` `↓`,
 change a choice with `←` `→`, and press `Esc` to return to Main.
 
-The **About** screen (`3` or `?`) shows a brief description, the full list of
+The **About** screen (`4` or `?`) shows a brief description, the full list of
 keybindings, and where lazyprop keeps its files; scroll it with `w` / `s`.
 
-### The YAML editor (`4`)
+### The YAML editor (`3`)
 
 Encrypt/decrypt individual values inside a `.yaml`/`.yml` file **in place**,
 leaving comments, ordering and formatting untouched.
 
-1. Press `4` to open the YAML screen, then `Ctrl-o` to open a file — either
+1. Press `3` to open the YAML screen, then `Ctrl-o` to open a file — either
    **browse** the filesystem or `Tab` to **type a path** (`~` is expanded).
    You can also start on it directly: `lazyprop --file ./config.yaml`.
 2. The file is shown as a collapsible tree. Move with `w`/`s` (or arrows),
@@ -203,7 +203,7 @@ failing deep inside the jar.
 | ----------- | ---------------------------------------- |
 | `s` / `Down`| Select next environment / scroll down    |
 | `w` / `Up`  | Select previous environment / scroll up  |
-| `1`/`2`/`3`/`4` | Jump to Main / Playground / About / YAML |
+| `1`/`2`/`3`/`4` | Jump to Main / Playground / YAML / About |
 | `h` / `l`   | Previous / next screen                   |
 | `Tab`       | Cycle focus (Environments ↔ Value)       |
 | `/`         | Filter the environments list by name     |
@@ -221,7 +221,7 @@ failing deep inside the jar.
 | `Ctrl-c`    | Quit                                     |
 | `Ctrl-z`    | Suspend                                  |
 
-**YAML screen** (`4`): `Ctrl-o` open file · `w`/`s` navigate tree · `←`/`→`
+**YAML screen** (`3`): `Ctrl-o` open file · `w`/`s` navigate tree · `←`/`→`
 fold/unfold · `Enter` edit scalar (or expand/collapse) · `e`/`d`
 encrypt/decrypt the selected value · `Ctrl-s` save · `Ctrl-r` restore · `r`
 reveal · `Tab` switch focus (environments ↔ tree) · `Esc` cancel/close.

@@ -95,7 +95,7 @@ impl AboutScreen {
         ));
         lines.extend(wrap_styled(
             "Main (1) encrypts/decrypts values against a saved environment; \
-             Playground (2) does one-off values; YAML (4) opens a .yaml/.yml file \
+             Playground (2) does one-off values; YAML (3) opens a .yaml/.yml file \
              as a tree and encrypts/decrypts individual scalars in place, \
              preserving comments and formatting.",
             width,
@@ -132,7 +132,7 @@ impl AboutScreen {
 
         lines.push(Line::raw(""));
         lines.push(Line::from(Span::styled(
-            "Switch screens: 1 Main · 2 Playground · 3 About · h/l · Esc",
+            "Switch screens: 1 Main · 2 Playground · 3 YAML · 4 About · h/l · Esc",
             theme::hint(),
         )));
         lines

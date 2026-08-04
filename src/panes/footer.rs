@@ -40,7 +40,7 @@ impl Pane for FooterPane {
             ("x", "delete"),
             ("r", "reveal"),
             ("w/s", "move"),
-            ("4", "yaml"),
+            ("3", "yaml"),
             ("q", "quit"),
         ];
 
@@ -65,8 +65,8 @@ impl Pane for FooterPane {
             Mode::About => &[
                 ("1", "main"),
                 ("2", "playground"),
-                ("3", "about"),
-                ("4", "yaml"),
+                ("3", "yaml"),
+                ("4", "about"),
                 ("h/l", "switch"),
                 ("w/s", "scroll"),
                 ("q", "quit"),

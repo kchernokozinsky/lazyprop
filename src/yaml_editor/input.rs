@@ -55,8 +55,8 @@ pub fn handle_key(key: KeyEvent, state: &mut State, tx: &UnboundedSender<Action>
     match key.code {
         KeyCode::Char('1') => return send(tx, Action::GoMain),
         KeyCode::Char('2') => return send(tx, Action::GoPlayground),
-        KeyCode::Char('3') => return send(tx, Action::GoAbout),
-        KeyCode::Char('4') => return Ok(()), // already here
+        KeyCode::Char('3') => return Ok(()), // already here
+        KeyCode::Char('4') => return send(tx, Action::GoAbout),
         KeyCode::Char('h') => return send(tx, Action::PrevScreen),
         KeyCode::Char('l') => return send(tx, Action::NextScreen),
         _ => {}

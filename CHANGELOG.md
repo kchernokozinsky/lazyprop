@@ -8,7 +8,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- **YAML editor screen** (`4`): open a `.yaml`/`.yml` file (browse or type a
+- **YAML editor screen** (`3`): open a `.yaml`/`.yml` file (browse or type a
   path, or `--file`), navigate it as a collapsible tree, select an environment,
   and encrypt/decrypt individual scalar values **in place** — comments, order
   and formatting are preserved (only the selected value token changes).

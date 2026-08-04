@@ -58,8 +58,8 @@ impl Mode {
     }
 
     fn shift(self, forward: bool) -> Self {
-        let i = self.component_index();
         let len = Self::ORDER.len();
+        let i = Self::ORDER.iter().position(|&m| m == self).unwrap_or(0);
         Self::ORDER[if forward {
             (i + 1) % len
         } else {
@@ -295,8 +295,8 @@ impl App {
             let nav = match key.code {
                 KeyCode::Char('1') => Some(Action::GoMain),
                 KeyCode::Char('2') => Some(Action::GoPlayground),
-                KeyCode::Char('3') => Some(Action::GoAbout),
-                KeyCode::Char('4') => Some(Action::GoYaml),
+                KeyCode::Char('3') => Some(Action::GoYaml),
+                KeyCode::Char('4') => Some(Action::GoAbout),
                 KeyCode::Char('h') => Some(Action::PrevScreen),
                 KeyCode::Char('l') => Some(Action::NextScreen),
                 KeyCode::Char('q') => Some(Action::Quit),
