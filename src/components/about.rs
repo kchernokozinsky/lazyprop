@@ -227,7 +227,7 @@ impl AboutScreen {
                     .collect()
             })
             .unwrap_or_default();
-        bindings.sort_by(|a, b| a.1.cmp(b.1));
+        bindings.sort_by_key(|a| a.1);
         bindings
             .into_iter()
             .map(|(key, desc)| {

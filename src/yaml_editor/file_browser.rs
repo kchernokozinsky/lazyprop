@@ -78,8 +78,8 @@ impl FileBrowser {
             }
             Err(e) => self.error = Some(format!("Cannot read directory: {e}")),
         }
-        dirs.sort_by(|a, b| a.label.to_lowercase().cmp(&b.label.to_lowercase()));
-        files.sort_by(|a, b| a.label.to_lowercase().cmp(&b.label.to_lowercase()));
+        dirs.sort_by_key(|a| a.label.to_lowercase());
+        files.sort_by_key(|a| a.label.to_lowercase());
         self.entries.extend(dirs);
         self.entries.extend(files);
     }
