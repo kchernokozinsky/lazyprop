@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2026-08-04
+
+### Fixed
+
+- The header no longer clips the app name — it showed as `azyprop` instead of
+  `lazyprop`.
+- Replaced the `▶` selection marker (environments list and form fields) with an
+  ASCII `>` so it renders correctly on Windows.
+
 ## [0.1.0] - 2026-07-30
 
 First release.
@@ -25,4 +34,5 @@ First release.
   project-local `./envs.yaml` / `~/.lazyprop/envs.yaml`.
 - Cross-platform (macOS, Linux, Windows) with CI and release binaries.
 
+[0.1.1]: https://github.com/kchernokozinsky/lazyprop/releases/tag/v0.1.1
 [0.1.0]: https://github.com/kchernokozinsky/lazyprop/releases/tag/v0.1.0
