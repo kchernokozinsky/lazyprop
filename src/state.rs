@@ -447,6 +447,30 @@ impl State {
         })
     }
 
+    /// A minimal in-memory state for unit tests (no disk access).
+    #[cfg(test)]
+    pub fn for_test() -> State {
+        Self {
+            envs: Environments::default(),
+            startup_message: None,
+            current_env_index: 0,
+            input_mode: InputMode::default(),
+            search_query: None,
+            searching: false,
+            input_value: TextField::default(),
+            result: None,
+            busy: false,
+            reveal_key: false,
+            jar_path: PathBuf::new(),
+            envs_path: PathBuf::new(),
+            mode: Mode::default(),
+            form: None,
+            pending_delete: None,
+            playground: Playground::default(),
+            yaml: YamlEditorState::default(),
+        }
+    }
+
     /// Start an encrypt/decrypt for the selected YAML scalar, using the
     /// selected environment, off the UI thread.
     pub fn yaml_begin_crypto(&mut self, tx: UnboundedSender<Action>, op: Operation) {

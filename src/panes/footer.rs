@@ -3,12 +3,17 @@ use ratatui::prelude::*;
 
 use crate::{
     app::Mode,
+    hints::{
+        contextual_hints, render_footer_line, ConfirmationKind, HintContext, YamlHintFocus,
+        YamlHints,
+    },
     panes::Pane,
-    state::{InputMode, State},
-    theme,
+    state::{InputMode, PlaygroundField, State},
+    yaml_editor::state::{Confirm, Guard, OpenMode, YamlFocus},
 };
 
-/// A one-line footer showing the most useful keybindings for the active screen.
+/// A one-line footer showing the actions valid for the current screen, focus and
+/// mode. All hint text comes from the shared [`crate::hints`] renderer.
 #[derive(Default)]
 pub struct FooterPane {}
 
@@ -18,87 +23,92 @@ impl FooterPane {
     }
 }
 
+/// Derive the active hint context from application state. Open modals and
+/// confirmation dialogs take precedence over the screen behind them, so
+/// background hints never leak into a popup.
+pub fn hint_context(state: &State) -> HintContext {
+    // Modals that can appear over any screen.
+    if state.form.is_some() {
+        return HintContext::EnvForm;
+    }
+    if state.pending_delete.is_some() {
+        return HintContext::Confirmation(ConfirmationKind::DeleteEnv);
+    }
+
+    match state.mode {
+        Mode::Main => {
+            if state.searching {
+                HintContext::MainSearching
+            } else if state.input_mode == InputMode::Insert {
+                HintContext::MainEditing
+            } else {
+                HintContext::Main
+            }
+        }
+        Mode::Playground => match state.playground.field {
+            PlaygroundField::Key | PlaygroundField::Value => HintContext::PlaygroundEditing,
+            _ => HintContext::Playground,
+        },
+        Mode::About => HintContext::About,
+        Mode::Yaml => yaml_context(state),
+    }
+}
+
+fn yaml_context(state: &State) -> HintContext {
+    let y = &state.yaml;
+    // Unsaved-changes guard wins over everything.
+    if let Some(guard) = y.guard() {
+        return HintContext::Confirmation(match guard {
+            Guard::Quit => ConfirmationKind::UnsavedQuit,
+            Guard::Open(_) => ConfirmationKind::UnsavedOpen,
+        });
+    }
+    if let Some(confirm) = y.confirm {
+        return HintContext::Confirmation(match confirm {
+            Confirm::Restore => ConfirmationKind::Restore,
+            Confirm::OverwriteExternal => ConfirmationKind::OverwriteExternal,
+        });
+    }
+    if let Some(modal) = &y.open_modal {
+        return match modal.mode {
+            OpenMode::Browse => {
+                let on_dir = modal
+                    .browser
+                    .selected_entry()
+                    .map(|e| e.is_dir)
+                    .unwrap_or(false);
+                HintContext::FileBrowser {
+                    on_dir,
+                    on_yaml: !on_dir,
+                }
+            }
+            OpenMode::Path => HintContext::PathInput,
+        };
+    }
+    if y.editing.is_some() {
+        return HintContext::YamlEditing;
+    }
+    HintContext::Yaml(YamlHints {
+        focus: match y.focus {
+            YamlFocus::Environments => YamlHintFocus::Environments,
+            YamlFocus::Tree => YamlHintFocus::Tree,
+        },
+        file_open: y.is_open(),
+        crypto_in_progress: y.crypto_in_progress,
+        dirty: y.dirty(),
+        env_selected: state.selected_env().is_some(),
+        selection: y.selection_kind(),
+    })
+}
+
 impl Pane for FooterPane {
     fn height_constraint(&self) -> Constraint {
         Constraint::Max(1)
     }
 
     fn draw(&mut self, frame: &mut Frame<'_>, area: Rect, state: &State) -> Result<()> {
-        // On the main screen the hints depend on what currently has focus, so
-        // only keys that actually do something are shown. Items are ordered
-        // most-important first so the least useful drop off when narrow.
-        let main_searching: &[(&str, &str)] =
-            &[("type", "filter"), ("Esc", "done"), ("Tab", "focus")];
-        let main_value: &[(&str, &str)] = &[("type", "value"), ("Esc", "done"), ("Tab", "focus")];
-        let main_normal: &[(&str, &str)] = &[
-            ("e", "encrypt"),
-            ("d", "decrypt"),
-            ("Ctrl-y", "copy"),
-            ("/", "search"),
-            ("a", "add"),
-            ("Enter", "edit"),
-            ("x", "delete"),
-            ("r", "reveal"),
-            ("w/s", "move"),
-            ("3", "yaml"),
-            ("q", "quit"),
-        ];
-
-        let hints: &[(&str, &str)] = match state.mode {
-            Mode::Main => {
-                if state.searching {
-                    main_searching
-                } else if state.input_mode == InputMode::Insert {
-                    main_value
-                } else {
-                    main_normal
-                }
-            }
-            Mode::Playground => &[
-                ("Tab/↑↓", "move"),
-                ("←/→", "change"),
-                ("Enter", "generate"),
-                ("Ctrl-y", "copy"),
-                ("Esc", "back"),
-                ("1/2/3", "screen"),
-            ],
-            Mode::About => &[
-                ("1", "main"),
-                ("2", "playground"),
-                ("3", "yaml"),
-                ("4", "about"),
-                ("h/l", "switch"),
-                ("w/s", "scroll"),
-                ("q", "quit"),
-            ],
-            Mode::Yaml => {
-                if state.yaml.editing.is_some() {
-                    &[("type", "value"), ("Enter", "apply"), ("Esc", "cancel")]
-                } else if state.yaml.open_modal.is_some() {
-                    &[
-                        ("↑↓", "move"),
-                        ("Enter", "open"),
-                        ("Tab", "mode"),
-                        ("Esc", "cancel"),
-                    ]
-                } else {
-                    &[
-                        ("Ctrl-o", "open"),
-                        ("w/s", "move"),
-                        ("←/→", "fold"),
-                        ("Enter", "edit"),
-                        ("e", "encrypt"),
-                        ("d", "decrypt"),
-                        ("Ctrl-s", "save"),
-                        ("Ctrl-r", "restore"),
-                        ("r", "reveal"),
-                        ("Tab", "focus"),
-                    ]
-                }
-            }
-        };
-
-        frame.render_widget(Line::from(fit_hints(hints, area.width as usize)), area);
+        let hints = contextual_hints(&hint_context(state));
+        frame.render_widget(render_footer_line(hints, area.width as usize), area);
         Ok(())
     }
 
@@ -107,28 +117,25 @@ impl Pane for FooterPane {
     }
 }
 
-/// Build footer spans, keeping only as many hints as fit in `width` cells.
-/// Items are consumed in order, so callers list the most useful first.
-fn fit_hints(hints: &[(&str, &str)], width: usize) -> Vec<Span<'static>> {
-    let sep = || Span::styled(" · ", theme::hint());
-    let mut spans = vec![Span::raw(" ")];
-    let mut used = 1usize; // leading space
-    let mut first = true;
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    for (k, d) in hints {
-        // "k d" plus a separator when not the first item.
-        let item_w = k.chars().count() + 1 + d.chars().count() + if first { 0 } else { 3 };
-        if used + item_w + 1 > width {
-            break;
-        }
-        if !first {
-            spans.push(sep());
-        }
-        spans.push(Span::styled(k.to_string(), theme::key()));
-        spans.push(Span::raw(" "));
-        spans.push(Span::raw(d.to_string()));
-        used += item_w;
-        first = false;
+    #[test]
+    fn env_form_overrides_screen() {
+        let mut state = State::for_test();
+        state.mode = Mode::Main;
+        state.open_add_form();
+        assert_eq!(hint_context(&state), HintContext::EnvForm);
     }
-    spans
+
+    #[test]
+    fn about_context_has_no_numeric_shortcuts() {
+        let mut state = State::for_test();
+        state.mode = Mode::About;
+        let hints = contextual_hints(&hint_context(&state));
+        assert!(hints
+            .iter()
+            .all(|h| !h.key.chars().any(|c| ('1'..='4').contains(&c))));
+    }
 }

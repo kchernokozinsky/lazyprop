@@ -7,6 +7,7 @@ pub mod config;
 pub mod dencrypt;
 pub mod environment;
 pub mod errors;
+pub mod hints;
 pub mod logging;
 pub mod panes;
 pub mod state;

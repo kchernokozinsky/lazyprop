@@ -22,9 +22,11 @@ impl HeaderPane {
             .map(|(mode, _, _, _)| *mode)
     }
 
-    /// A tab as two spans: a dimmed shortcut number and the screen name.
-    /// The active screen's name is accented, bold and underlined; the rest dim.
-    fn tab(num: &str, label: &str, active: bool) -> [Span<'static>; 3] {
+    /// A tab as a single span: the screen name. The active screen is accented,
+    /// bold and underlined; the rest are dim. Numeric shortcuts are intentionally
+    /// not shown here (they still work) — the contextual footer and the About
+    /// guides are the source of truth for keybindings.
+    fn tab(label: &str, active: bool) -> Span<'static> {
         let name_style = if active {
             Style::default()
                 .fg(theme::accent())
@@ -32,11 +34,7 @@ impl HeaderPane {
         } else {
             theme::hint()
         };
-        [
-            Span::styled(num.to_string(), theme::hint()),
-            Span::raw(" "),
-            Span::styled(label.to_string(), name_style),
-        ]
+        Span::styled(label.to_string(), name_style)
     }
 }
 
@@ -54,22 +52,22 @@ impl Pane for HeaderPane {
 
         let gap = || Span::raw("   ");
         let tabs = [
-            (Mode::Main, "1", "Main"),
-            (Mode::Playground, "2", "Playground"),
-            (Mode::Yaml, "3", "YAML"),
-            (Mode::About, "4", "About"),
+            (Mode::Main, "Main"),
+            (Mode::Playground, "Playground"),
+            (Mode::Yaml, "YAML"),
+            (Mode::About, "About"),
         ];
         let mut spans = vec![Span::raw(" ")];
         // Track each tab's clickable column range for mouse hit-testing.
         self.tabs.clear();
         let mut col = left.x + 1; // leading space
-        for (i, (mode, num, label)) in tabs.iter().enumerate() {
+        for (i, (mode, label)) in tabs.iter().enumerate() {
             if i > 0 {
                 spans.push(gap());
                 col += 3;
             }
-            spans.extend(Self::tab(num, label, state.mode == *mode));
-            let width = (num.len() + 1 + label.len()) as u16;
+            spans.push(Self::tab(label, state.mode == *mode));
+            let width = label.len() as u16;
             self.tabs.push((*mode, left.y, col, col + width));
             col += width;
         }

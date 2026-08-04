@@ -9,6 +9,7 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
+use crate::hints::YamlSelectionKind;
 use crate::state::Operation;
 use crate::text_field::TextField;
 use crate::yaml_editor::document::{self, Document, NodeKind, PathSeg, ScalarStyle};
@@ -386,6 +387,29 @@ impl YamlEditorState {
         self.selected_path
             .as_ref()
             .map(|p| document::path_to_string(p))
+    }
+
+    /// Classify the selected node for contextual hints (scalar/container,
+    /// encrypted/plain, expanded/collapsed).
+    pub fn selection_kind(&self) -> Option<YamlSelectionKind> {
+        let id = self.selected_id()?;
+        let node = &self.doc.nodes()[id];
+        match node.kind {
+            NodeKind::Scalar => {
+                if !node.is_editable_scalar() {
+                    return Some(YamlSelectionKind::ScalarUneditable);
+                }
+                let logical = self.doc.logical_value(id).unwrap_or_default();
+                if document::is_wrapped(&logical) {
+                    Some(YamlSelectionKind::ScalarEncrypted)
+                } else {
+                    Some(YamlSelectionKind::ScalarPlain)
+                }
+            }
+            _ => Some(YamlSelectionKind::Container {
+                expanded: self.expanded.contains(&node.path),
+            }),
+        }
     }
 
     /// (source, style, kind) of the selected node.
