@@ -6,6 +6,8 @@ use lazyprop::components::about::AboutScreen;
 use lazyprop::components::home::Home;
 use lazyprop::components::playground::PlaygroundScreen;
 use lazyprop::components::Component;
+use lazyprop::panes::footer::FooterPane;
+use lazyprop::panes::Pane;
 use lazyprop::state::State;
 use ratatui::{backend::TestBackend, Terminal};
 
@@ -108,6 +110,46 @@ fn about_screen_renders_help_and_info() {
         !text.contains("AddEnv"),
         "raw action name should not appear"
     );
+}
+
+fn footer_text(state: &State, w: u16) -> String {
+    let mut footer = FooterPane::new();
+    let mut terminal = Terminal::new(TestBackend::new(w, 1)).unwrap();
+    terminal
+        .draw(|frame| {
+            footer.draw(frame, frame.area(), state).unwrap();
+        })
+        .unwrap();
+    buffer_text(&terminal)
+}
+
+#[test]
+fn footer_is_contextual_and_hides_numeric_shortcuts() {
+    use lazyprop::app::Mode;
+
+    let mut state = State::new(Some(FIXTURE.to_string()), None).expect("state");
+
+    // Main screen: real actions, no numeric screen shortcuts.
+    state.mode = Mode::Main;
+    let main = footer_text(&state, 120);
+    assert!(main.contains("Encrypt"), "main footer: {main}");
+    assert!(main.contains("Quit"));
+    assert!(!main.contains('1') && !main.contains('2') && !main.contains('3'));
+
+    // YAML with no file: no Save / Encrypt / Decrypt.
+    state.mode = Mode::Yaml;
+    let yaml = footer_text(&state, 120);
+    assert!(yaml.contains("Open file"), "yaml footer: {yaml}");
+    assert!(!yaml.contains("Save"));
+    assert!(!yaml.contains("Encrypt"));
+
+    // Critical hints survive an absurdly narrow footer without panicking.
+    state.mode = Mode::Main;
+    let narrow = footer_text(&state, 8);
+    assert!(narrow.contains("Quit"), "critical hint dropped: {narrow}");
+    for w in [1u16, 2, 3, 5] {
+        let _ = footer_text(&state, w); // must not panic
+    }
 }
 
 #[test]
