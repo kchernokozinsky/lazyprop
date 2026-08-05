@@ -1,7 +1,5 @@
 <div align="center">
 
-<img src="docs/images/hero.png" alt="lazyprop" width="820">
-
 # lazyprop
 
 **A lazygit-style terminal UI for MuleSoft / Anypoint secure properties.**
@@ -15,6 +13,10 @@ command line.
 [![Release](https://img.shields.io/github/v/release/kchernokozinsky/lazyprop?sort=semver)](https://github.com/kchernokozinsky/lazyprop/releases)
 [![License: MIT](https://img.shields.io/github/license/kchernokozinsky/lazyprop)](LICENSE)
 ![Platforms](https://img.shields.io/badge/platforms-macOS%20%7C%20Linux%20%7C%20Windows-informational)
+
+<br>
+
+<img src="docs/images/lazyprop-demo.gif" alt="lazyprop demo" width="900">
 
 </div>
 
